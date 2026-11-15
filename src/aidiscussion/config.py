@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     data_dir: Path = Field(default=Path("./data"))
 
+    # 留空则自动使用 data_dir 下的 SQLite 文件
+    database_url: str | None = None
+
     # 模型接入：任何 OpenAI 兼容接口都可用
     llm_api_key: SecretStr | None = None
     llm_base_url: str = "https://api.deepseek.com/v1"
@@ -50,6 +53,13 @@ class Settings(BaseSettings):
         """确保数据目录存在，返回该目录。"""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self.data_dir
+
+    @property
+    def resolved_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url
+        db_file = (self.data_dir / "aidiscussion.db").absolute()
+        return f"sqlite+aiosqlite:///{db_file.as_posix()}"
 
 
 @lru_cache

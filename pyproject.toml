@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
+    "aiosqlite>=0.22.1",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0",
 ]
 
 [project.scripts]
@@ -16,6 +18,7 @@ aidiscussion = "aidiscussion.__main__:main"
 [dependency-groups]
 dev = [
     "pytest>=8.2",
+    "pytest-asyncio>=1.5.0",
     "ruff>=0.5",
 ]
 
@@ -37,3 +40,5 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -13,7 +13,8 @@
 | --- | --- |
 | 语言 | Python 3.12（uv 管理） |
 | 配置 | pydantic-settings |
-| 后续 | FastAPI · WebSocket · SQLAlchemy 2.0 · LangGraph · pywebview |
+| 存储 | SQLAlchemy 2.0（异步）+ SQLite |
+| 后续 | FastAPI · WebSocket · LangGraph · pywebview |
 
 ## 快速开始
 
@@ -33,7 +34,7 @@ uv run ruff check .  # 静态检查
 ## 路线图
 
 - [x] 第 1 章 工程骨架与配置
-- [ ] 第 2 章 领域模型与持久化
+- [x] 第 2 章 领域模型与持久化
 - [ ] 第 3 章 LLM 适配层与流式输出
 - [ ] 第 4 章 会话编排（私聊 / @ / 自由讨论 / 主持人）
 - [ ] 第 5 章 终端客户端

@@ -25,6 +25,7 @@ def render_check(settings: Settings) -> str:
         f"调试模式    : {settings.debug}",
         f"日志级别    : {settings.log_level.upper()}",
         f"数据目录    : {settings.data_dir.resolve()}",
+        f"数据库      : {settings.resolved_database_url}",
         f"模型接口    : {settings.llm_base_url}",
         f"默认模型    : {settings.llm_model}",
         f"密钥        : {settings.masked_llm_key()}",
