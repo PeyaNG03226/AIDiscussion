@@ -24,3 +24,8 @@ def setup_logging(level: str = "INFO", debug: bool = False) -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(logging.DEBUG if debug else level.upper())
+
+    # 第三方库的请求日志会打断聊天界面的流式输出，非调试模式下一律压到 WARNING
+    if not debug:
+        for name in ("httpx", "httpcore", "asyncio"):
+            logging.getLogger(name).setLevel(logging.WARNING)

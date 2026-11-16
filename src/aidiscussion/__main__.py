@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--check", action="store_true", help="打印当前配置并检查完整性")
     parser.add_argument("--ask", metavar="问题", help="快速试聊，验证模型接入是否正常")
+    parser.add_argument("--chat", action="store_true", help="进入交互式群聊")
     return parser
 
 
@@ -69,6 +70,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.ask:
         return asyncio.run(ask(args.ask))
+
+    if args.chat:
+        from aidiscussion.cli.app import start
+
+        return start()
 
     print(f"{settings.app_name} v{__version__} 骨架就绪，使用 --check 查看配置。")
     return 0
