@@ -1,10 +1,14 @@
-"""命令行入口：当前阶段只提供自检，后续章节会扩展为聊天客户端。"""
+"""命令行入口：自检与快速试聊，后续章节会扩展为完整聊天客户端。"""
 
 import argparse
+import asyncio
 import sys
 
 from aidiscussion import __version__
 from aidiscussion.config import Settings, get_settings
+from aidiscussion.llm.base import LLMMessage
+from aidiscussion.llm.errors import LLMError
+from aidiscussion.llm.factory import get_llm
 from aidiscussion.logging import setup_logging
 
 
@@ -15,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--check", action="store_true", help="打印当前配置并检查完整性")
+    parser.add_argument("--ask", metavar="问题", help="快速试聊，验证模型接入是否正常")
     return parser
 
 
@@ -34,6 +39,24 @@ def render_check(settings: Settings) -> str:
     return "\n".join(lines)
 
 
+async def ask(question: str) -> int:
+    llm = get_llm()
+    messages = [
+        LLMMessage(role="system", content="你是一个简洁直接的中文助手。"),
+        LLMMessage(role="user", content=question),
+    ]
+    try:
+        async for piece in llm.stream_chat(messages):
+            print(piece, end="", flush=True)
+    except LLMError as exc:
+        print(f"\n[模型调用失败] {exc}", file=sys.stderr)
+        return 1
+    finally:
+        await llm.aclose()
+    print()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = get_settings()
@@ -43,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         print(render_check(settings))
         return 0
+
+    if args.ask:
+        return asyncio.run(ask(args.ask))
 
     print(f"{settings.app_name} v{__version__} 骨架就绪，使用 --check 查看配置。")
     return 0
