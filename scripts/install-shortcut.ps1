@@ -33,7 +33,7 @@ if (Test-Path $gui) {
     exit 1
 }
 
-$icon = Join-Path $root "assets\aidiscussion.ico"
+$icon = Join-Path $root "assets\aidiscussion-app.ico"
 
 function New-AppShortcut {
     param([string]$Path)
