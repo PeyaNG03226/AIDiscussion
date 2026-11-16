@@ -21,6 +21,7 @@ aidiscussion = "aidiscussion.__main__:main"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.16.0",
     "pytest>=8.2",
     "pytest-asyncio>=1.5.0",
     "ruff>=0.5",
