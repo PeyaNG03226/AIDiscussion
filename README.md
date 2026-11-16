@@ -5,7 +5,7 @@
 群里的成员是各家 AI：可以随时添加、踢除；也可以单独私聊某个 AI。
 群聊支持 @ 点名、自由讨论和主持人调度，私聊与群聊共用同一套会话与消息模型。
 
-> 项目正在按章节迭代，当前进度：**第 8 章 · 上下文压缩与长期记忆**。
+> 项目正在按章节迭代，当前进度：**第 9 章 · 桌面悬浮球与容器化**。
 
 ## 技术栈
 
@@ -16,7 +16,8 @@
 | 存储 | SQLAlchemy 2.0（异步）+ SQLite |
 | 模型 | httpx + OpenAI 兼容协议（流式 SSE） |
 | 服务 | FastAPI + WebSocket |
-| 后续 | LangGraph · pywebview |
+| 桌面 | pywebview（可选） |
+| 交付 | Docker · GitHub Actions |
 
 ## 快速开始
 
@@ -27,6 +28,8 @@ uv run aidiscussion --check
 uv run aidiscussion --ask "你好"   # 流式试聊，未配置密钥时使用离线 Mock
 uv run aidiscussion --chat          # 进入交互式群聊
 uv run aidiscussion --serve         # 启动 Web 服务（http://127.0.0.1:8000）
+uv sync --extra desktop             # 安装桌面外壳依赖（可选）
+uv run aidiscussion --desktop       # 桌面悬浮球模式
 ```
 
 打开 <http://127.0.0.1:8000> 即可使用 Web 界面：左侧切换会话与私聊 AI，右侧聊天区支持流式回复、@ 点名、切换群聊模式和成员增删，无需安装任何前端依赖。
@@ -37,6 +40,31 @@ uv run aidiscussion --serve         # 启动 Web 服务（http://127.0.0.1:8000�
 - WebSocket 流式渲染：`reply_start` 建气泡、`reply_delta` 逐字追加、`reply_done` 定稿
 - 三种群聊模式（点名 / 自由讨论 / 主持人调度）按会话记忆在 `localStorage`
 - 当前会话、断线重连、成员管理与新建群聊都在同一页面完成
+
+## 桌面悬浮球
+
+`uv run aidiscussion --desktop` 会启动一个内置服务并打开 84×84 的圆形悬浮球（置顶、可拖动）：
+
+- 左键点击：展开完整聊天窗口
+- 关闭聊天窗口：缩回悬浮球，程序继续在后台运行
+- 右键悬浮球：退出
+
+桌面壳基于 pywebview，仅是 Web UI 的外壳，数据和服务与浏览器版完全一致。
+Windows 需要 WebView2 运行时（Win10/11 通常已自带）；pywebview 属于可选依赖，
+未安装时 `--desktop` 会提示执行 `uv sync --extra desktop`，不影响 `--serve`。
+
+## 容器化与 CI
+
+```bash
+docker build -t aidiscussion .
+docker run --rm -p 8000:8000 --env-file .env -v aidiscussion-data:/data aidiscussion
+
+# 或者
+docker compose up --build
+```
+
+镜像内以 `AIDISCUSSION_API_HOST=0.0.0.0` 启动服务，SQLite 数据落在 `/data` 卷；
+`.github/workflows/ci.yml` 在 Ubuntu / Windows 上跑 ruff + pytest，并校验 Docker 构建。
 
 ## 上下文压缩与长期记忆
 
@@ -94,5 +122,5 @@ uv run ruff check .  # 静态检查
 - [x] 第 6 章 FastAPI + WebSocket 服务层
 - [x] 第 7 章 Web 聊天界面
 - [x] 第 8 章 上下文压缩与长期记忆
-- [ ] 第 9 章 桌面悬浮球与容器化
+- [x] 第 9 章 桌面悬浮球与容器化
 - [ ] 第 10 章 文档与发布

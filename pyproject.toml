@@ -19,6 +19,10 @@ dependencies = [
 [project.scripts]
 aidiscussion = "aidiscussion.__main__:main"
 
+[project.optional-dependencies]
+# 桌面壳是可选能力：`uv sync --extra desktop` 后才启用 --desktop
+desktop = ["pywebview>=5.0"]
+
 [dependency-groups]
 dev = [
     "httpx2>=2.16.0",

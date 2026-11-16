@@ -22,6 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ask", metavar="问题", help="快速试聊，验证模型接入是否正常")
     parser.add_argument("--chat", action="store_true", help="进入交互式群聊")
     parser.add_argument("--serve", action="store_true", help="启动 Web 服务（REST + WebSocket）")
+    parser.add_argument(
+        "--desktop", action="store_true", help="桌面悬浮球模式（需要 --extra desktop）"
+    )
     return parser
 
 
@@ -84,6 +87,11 @@ def main(argv: list[str] | None = None) -> int:
 
         uvicorn.run(create_app(), host=settings.api_host, port=settings.api_port)
         return 0
+
+    if args.desktop:
+        from aidiscussion.desktop.app import start_desktop
+
+        return start_desktop()
 
     print(f"{settings.app_name} v{__version__} 骨架就绪，使用 --check 查看配置。")
     return 0

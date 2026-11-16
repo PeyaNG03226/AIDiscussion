@@ -1,0 +1,18 @@
+services:
+  aidiscussion:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      AIDISCUSSION_API_HOST: 0.0.0.0
+      AIDISCUSSION_DATA_DIR: /data
+      # 下面几项从宿主机的 .env 或环境变量读取，未配置时以离线 Mock 运行
+      AIDISCUSSION_LLM_API_KEY: ${AIDISCUSSION_LLM_API_KEY:-}
+      AIDISCUSSION_LLM_BASE_URL: ${AIDISCUSSION_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      AIDISCUSSION_LLM_MODEL: ${AIDISCUSSION_LLM_MODEL:-deepseek-chat}
+    volumes:
+      - aidiscussion-data:/data
+    restart: unless-stopped
+
+volumes:
+  aidiscussion-data:
