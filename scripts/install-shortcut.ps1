@@ -8,11 +8,12 @@
   说明：
     - 优先指向无控制台的 aidiscussion-desktop.exe；
     - 该文件尚不存在时退回 pythonw.exe -m aidiscussion --desktop；
-    - -OutputDir 仅用于测试，指定快捷方式输出目录。
+    - -OutputDir / -StartupDir 仅用于测试，分别指定快捷方式输出目录。
 #>
 param(
     [switch]$Startup,
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+    [string]$StartupDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,7 +54,8 @@ $desktop = if ($OutputDir) { $OutputDir } else { [Environment]::GetFolderPath("D
 New-AppShortcut (Join-Path $desktop "AIDiscussion.lnk")
 
 if ($Startup) {
-    $startup = [Environment]::GetFolderPath("Startup")
-    New-AppShortcut (Join-Path $startup "AIDiscussion.lnk")
+    # 注意：PowerShell 变量名不区分大小写，这里不能复用 $startup
+    $startupFolder = if ($StartupDir) { $StartupDir } else { [Environment]::GetFolderPath("Startup") }
+    New-AppShortcut (Join-Path $startupFolder "AIDiscussion.lnk")
     Write-Host "已设置开机自启，登录 Windows 后悬浮球会自动出现。"
 }
