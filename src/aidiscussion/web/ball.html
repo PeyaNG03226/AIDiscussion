@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>AIDiscussion</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+  }
+  .ball {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 30% 26%, #1c2233 0%, #0d1017 72%);
+    border: 1px solid rgba(124, 150, 255, 0.35);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .ball:hover {
+    transform: scale(1.06);
+    box-shadow: 0 12px 30px rgba(79, 124, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .ball:active {
+    transform: scale(0.96);
+  }
+  .ball img {
+    width: 94%;
+    height: 94%;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+</style>
+</head>
+<body>
+  <div class="ball"
+       onclick="pywebview.api.open_chat()"
+       oncontextmenu="pywebview.api.quit_app(); return false;"
+       title="左键打开 AIDiscussion，右键退出">
+    <img src="ball.png" alt="AIDiscussion" draggable="false" />
+  </div>
+</body>
+</html>

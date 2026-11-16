@@ -13,40 +13,6 @@ import sys
 from aidiscussion.config import get_settings
 from aidiscussion.desktop.server import ServerThread
 
-BALL_HTML = """<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<style>
-  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
-  .ball {
-    width: 100%; height: 100%; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 30% 28%, #8aa4ff 0%, #4f7cff 45%, #6b4cff 100%);
-    box-shadow: 0 10px 26px rgba(79, 124, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    color: #fff; font: 700 30px/1 "Segoe UI", system-ui, sans-serif;
-    cursor: pointer; user-select: none; transition: transform 0.15s ease;
-  }
-  .ball:hover { transform: scale(1.06); }
-  .ball:active { transform: scale(0.96); }
-  .ring {
-    position: absolute; inset: 2px; border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    animation: breathe 3.2s ease-in-out infinite;
-  }
-  @keyframes breathe { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.75; } }
-</style>
-</head>
-<body>
-  <div class="ball" onclick="pywebview.api.open_chat()"
-       oncontextmenu="pywebview.api.quit_app(); return false;"
-       title="左键打开 AIDiscussion，右键退出">
-    A<span class="ring"></span>
-  </div>
-</body>
-</html>
-"""
-
 
 class DesktopBridge:
     """暴露给悬浮球页面的 JS API。"""
@@ -99,7 +65,7 @@ def start_desktop() -> int:
         bridge = DesktopBridge()
         ball = webview.create_window(
             "AIDiscussion",
-            html=BALL_HTML,
+            url=f"{url}/ball.html",
             width=84,
             height=84,
             frameless=True,
