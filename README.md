@@ -5,7 +5,9 @@
 群里的成员是各家 AI：可以随时添加、踢除；也可以单独私聊某个 AI。
 群聊支持 @ 点名、自由讨论和主持人调度，私聊与群聊共用同一套会话与消息模型。
 
-> 项目正在按章节迭代，当前进度：**第 9 章 · 桌面悬浮球与容器化**。
+> 项目正在按章节迭代，当前进度：**第 10 章 · 文档与发布（v0.1.0）**。
+
+![AIDiscussion Web 界面](docs/assets/screenshot.jpg)
 
 ## 技术栈
 
@@ -66,6 +68,28 @@ docker compose up --build
 镜像内以 `AIDISCUSSION_API_HOST=0.0.0.0` 启动服务，SQLite 数据落在 `/data` 卷；
 `.github/workflows/ci.yml` 在 Ubuntu / Windows 上跑 ruff + pytest，并校验 Docker 构建。
 
+## 项目结构
+
+```text
+src/aidiscussion/
+├── api/            # FastAPI 应用、REST、WebSocket
+├── cli/            # 终端聊天客户端
+├── db/             # 模型与异步数据库
+├── desktop/        # pywebview 悬浮球外壳
+├── llm/            # OpenAI 兼容适配层与 Mock
+├── repositories/   # 数据访问
+├── services/       # 编排、上下文、压缩、记忆
+└── web/            # 原生前端
+```
+
+更完整的分层、数据模型与消息时序见 [架构说明](docs/ARCHITECTURE.md)。
+
+## 文档
+
+- [架构说明](docs/ARCHITECTURE.md)
+- [贡献指南](CONTRIBUTING.md)
+- [更新日志](CHANGELOG.md)
+
 ## 上下文压缩与长期记忆
 
 聊得越久，历史消息越多，直接把全部记录塞给模型既慢又贵。这里的处理是：
@@ -123,4 +147,18 @@ uv run ruff check .  # 静态检查
 - [x] 第 7 章 Web 聊天界面
 - [x] 第 8 章 上下文压缩与长期记忆
 - [x] 第 9 章 桌面悬浮球与容器化
-- [ ] 第 10 章 文档与发布
+- [x] 第 10 章 文档与发布
+
+## 发布
+
+版本号维护在 `pyproject.toml`，发布流程由 `.github/workflows/release.yml` 自动完成：
+先跑 ruff 与测试，再执行 `uv build` 构建 wheel / sdist，最后创建 GitHub Release。
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+## 许可
+
+[MIT](LICENSE)

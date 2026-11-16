@@ -5,6 +5,16 @@ description = "和一群 AI 成员一起群聊、私聊的桌面聊天工作台"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
+keywords = ["llm", "multi-agent", "chat", "fastapi", "sqlite"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+]
 dependencies = [
     "aiosqlite>=0.22.1",
     "colorama>=0.4.6",
