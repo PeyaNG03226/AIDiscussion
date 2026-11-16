@@ -18,6 +18,7 @@ from aidiscussion.repositories import members as member_repo
 from aidiscussion.repositories import messages as message_repo
 from aidiscussion.services import chat
 from aidiscussion.services.chat import ReplyDelta, ReplyDone, ReplyFailed, ReplyStart
+from aidiscussion.services.workspace import ensure_workspace
 
 WELCOME = """AIDiscussion 终端版
 输入内容即可发言；/help 查看命令，/exit 退出。
@@ -37,12 +38,6 @@ HELP = """可用命令：
   /help               显示本帮助
   /exit               退出
 """
-
-DEMO_MEMBERS = [
-    ("通用助手", "你是通用助手，回答简洁、给可执行建议，不空泛。"),
-    ("行业顾问", "你是资深行业顾问，回答有条理，主动指出风险与前提条件。"),
-    ("毒舌朋友", "你是毒舌但真诚的朋友，说话直接，敢指出问题，不用客套话。"),
-]
 
 
 class Mode(StrEnum):
@@ -91,26 +86,7 @@ class ChatApp:
             me = await member_repo.get_self_member(session)
             self.me_id = me.id
             self.me_name = me.name
-
-            ai_members = await member_repo.list_members(session, kind=MemberKind.AI)
-            if not ai_members:
-                ai_members = [
-                    await member_repo.create_member(session, name=name, system_prompt=prompt)
-                    for name, prompt in DEMO_MEMBERS
-                ]
-
-            conversations = await conv_repo.list_conversations(session)
-            if not conversations:
-                conversation = await conv_repo.create_conversation(
-                    session,
-                    type=ConversationType.GROUP,
-                    title="随便聊聊",
-                    member_ids=[me.id, *[member.id for member in ai_members]],
-                )
-            else:
-                conversation = conversations[0]
-
-            self._enter(conversation)
+            self._enter(await ensure_workspace(session))
 
     def _enter(self, conversation: Conversation) -> None:
         self.conversation_id = conversation.id

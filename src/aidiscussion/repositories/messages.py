@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from aidiscussion.db.models import Message, MessageStatus
 from aidiscussion.repositories.conversations import touch_conversation
@@ -43,7 +44,11 @@ async def list_messages(
     before_id: int | None = None,
 ) -> list[Message]:
     """返回按时间正序的消息，before_id 用于向上翻页。"""
-    stmt = select(Message).where(Message.conversation_id == conversation_id)
+    stmt = (
+        select(Message)
+        .options(joinedload(Message.sender))
+        .where(Message.conversation_id == conversation_id)
+    )
     if before_id is not None:
         stmt = stmt.where(Message.id < before_id)
     stmt = stmt.order_by(Message.id.desc()).limit(limit)
@@ -64,7 +69,11 @@ async def recent_messages(
     exclude_ids: Sequence[int] = (),
 ) -> list[Message]:
     """取最近若干条消息，供组装模型上下文使用。"""
-    stmt = select(Message).where(Message.conversation_id == conversation_id)
+    stmt = (
+        select(Message)
+        .options(joinedload(Message.sender))
+        .where(Message.conversation_id == conversation_id)
+    )
     if exclude_ids:
         stmt = stmt.where(Message.id.not_in(exclude_ids))
     stmt = stmt.order_by(Message.id.desc()).limit(limit)

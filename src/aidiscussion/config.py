@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_timeout: float = 60.0
     llm_max_retries: int = 2
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
 
     @property
     def has_llm_key(self) -> bool:

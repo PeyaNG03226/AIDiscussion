@@ -8,10 +8,12 @@ license = { text = "MIT" }
 dependencies = [
     "aiosqlite>=0.22.1",
     "colorama>=0.4.6",
+    "fastapi>=0.163.1",
     "httpx>=0.27",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "sqlalchemy[asyncio]>=2.0",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
@@ -38,6 +40,10 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的依赖注入就是通过参数默认值声明的，这是框架惯例
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="打印当前配置并检查完整性")
     parser.add_argument("--ask", metavar="问题", help="快速试聊，验证模型接入是否正常")
     parser.add_argument("--chat", action="store_true", help="进入交互式群聊")
+    parser.add_argument("--serve", action="store_true", help="启动 Web 服务（REST + WebSocket）")
     return parser
 
 
@@ -75,6 +76,14 @@ def main(argv: list[str] | None = None) -> int:
         from aidiscussion.cli.app import start
 
         return start()
+
+    if args.serve:
+        import uvicorn
+
+        from aidiscussion.api.app import create_app
+
+        uvicorn.run(create_app(), host=settings.api_host, port=settings.api_port)
+        return 0
 
     print(f"{settings.app_name} v{__version__} 骨架就绪，使用 --check 查看配置。")
     return 0
