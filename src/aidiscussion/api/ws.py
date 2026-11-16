@@ -15,7 +15,7 @@ from aidiscussion.db.database import Database
 from aidiscussion.llm.base import LLMClient
 from aidiscussion.repositories import conversations as conv_repo
 from aidiscussion.repositories import members as member_repo
-from aidiscussion.services import chat
+from aidiscussion.services import chat, memory
 from aidiscussion.services.chat import ReplyDelta, ReplyDone, ReplyFailed, ReplyStart
 
 logger = logging.getLogger(__name__)
@@ -130,3 +130,8 @@ async def _handle_send(
                         "error": event.error,
                     }
                 )
+
+        # 回复结束后再做记忆提取：失败不影响本轮聊天，也不阻塞已发出的推送
+        await memory.extract_and_store(
+            session, llm, content=content, conversation_id=conversation_id
+        )

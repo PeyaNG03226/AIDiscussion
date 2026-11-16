@@ -17,6 +17,8 @@ def build_prompt(
     history: Sequence[Message],
     roster: Sequence[Member],
     is_group: bool,
+    summary: str | None = None,
+    memories: Sequence[str] = (),
 ) -> list[LLMMessage]:
     persona = member.system_prompt.strip() or f"你是「{member.name}」，一个有主见的对话伙伴。"
 
@@ -29,6 +31,15 @@ def build_prompt(
         )
     else:
         system_parts.append("这是你和用户的私聊，直接回答，不要加名字前缀。")
+
+    if memories:
+        bullet = "\n".join(f"- {item}" for item in memories)
+        system_parts.append(
+            "关于用户的长期记忆（可能有用，相关时自然带入，不要逐条复述）：\n" + bullet
+        )
+
+    if summary:
+        system_parts.append(f"更早的对话已经被压缩成下面的摘要：\n{summary}")
 
     messages = [LLMMessage(role="system", content="\n\n".join(system_parts))]
     for item in history:

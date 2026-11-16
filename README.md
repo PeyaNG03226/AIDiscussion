@@ -5,7 +5,7 @@
 群里的成员是各家 AI：可以随时添加、踢除；也可以单独私聊某个 AI。
 群聊支持 @ 点名、自由讨论和主持人调度，私聊与群聊共用同一套会话与消息模型。
 
-> 项目正在按章节迭代，当前进度：**第 7 章 · Web 聊天界面**。
+> 项目正在按章节迭代，当前进度：**第 8 章 · 上下文压缩与长期记忆**。
 
 ## 技术栈
 
@@ -37,6 +37,21 @@ uv run aidiscussion --serve         # 启动 Web 服务（http://127.0.0.1:8000�
 - WebSocket 流式渲染：`reply_start` 建气泡、`reply_delta` 逐字追加、`reply_done` 定稿
 - 三种群聊模式（点名 / 自由讨论 / 主持人调度）按会话记忆在 `localStorage`
 - 当前会话、断线重连、成员管理与新建群聊都在同一页面完成
+
+## 上下文压缩与长期记忆
+
+聊得越久，历史消息越多，直接把全部记录塞给模型既慢又贵。这里的处理是：
+
+- **滑动窗口**：最近 `context_keep_recent` 条消息始终原样保留
+- **增量摘要**：超出 `context_max_tokens` 的更早消息由模型压缩，并与旧摘要合并；
+  摘要记录 `up_to_message_id`，下一轮只处理新增部分，不会重复压缩
+- **硬截断兜底**：压缩失败或使用离线 Mock 时，直接丢弃最旧消息，聊天不中断
+- **长期记忆**：足够长的用户消息会触发一次轻量提取，产出关于用户的事实/偏好并落库；
+  后续按中文二元组 + 英文关键词重合度召回，注入 system prompt。
+  记忆跨会话共享，群聊里记下的事私聊也能用；终端里可用 `/memory` 查看
+
+相关配置见 `.env.example`：`AIDISCUSSION_CONTEXT_MAX_TOKENS`、
+`AIDISCUSSION_CONTEXT_KEEP_RECENT`、`AIDISCUSSION_MEMORY_ENABLED`、`AIDISCUSSION_MEMORY_TOP_K`。
 
 ## 接口
 
@@ -78,6 +93,6 @@ uv run ruff check .  # 静态检查
 - [x] 第 5 章 终端客户端
 - [x] 第 6 章 FastAPI + WebSocket 服务层
 - [x] 第 7 章 Web 聊天界面
-- [ ] 第 8 章 上下文压缩与长期记忆
+- [x] 第 8 章 上下文压缩与长期记忆
 - [ ] 第 9 章 桌面悬浮球与容器化
 - [ ] 第 10 章 文档与发布

@@ -79,3 +79,25 @@ async def recent_messages(
     stmt = stmt.order_by(Message.id.desc()).limit(limit)
     rows = (await session.execute(stmt)).scalars().all()
     return list(reversed(rows))
+
+
+async def messages_after(
+    session: AsyncSession,
+    conversation_id: str,
+    *,
+    after_id: int = 0,
+    limit: int = 500,
+) -> list[Message]:
+    """取摘要覆盖点之后的消息（正序），用于压缩判断与逐字回溯。
+
+    limit 设置得较大是有意的：这里要的是「摘要之后完整的一段」，
+    如果只取最新 N 条，中间就会留下永远压不到的历史空洞。
+    """
+    stmt = (
+        select(Message)
+        .options(joinedload(Message.sender))
+        .where(Message.conversation_id == conversation_id, Message.id > after_id)
+        .order_by(Message.id)
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())

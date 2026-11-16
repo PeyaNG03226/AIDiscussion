@@ -120,3 +120,41 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     sender: Mapped[Member] = relationship(lazy="joined")
+
+
+class ConversationSummary(Base):
+    """一段历史的压缩摘要。
+
+    up_to_message_id 表示「消息 id <= 该值的部分已经被摘要覆盖」，
+    组装上下文时只需取它之后的消息，避免重复把老内容塞给模型。
+    """
+
+    __tablename__ = "conversation_summaries"
+
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[str] = mapped_column(Text, default="")
+    up_to_message_id: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class Memory(Base):
+    """长期记忆：关于用户、跨会话有效的事实与偏好。
+
+    不绑定具体成员：群里的 AI 共享同一份「关于你的记忆」，
+    这样从群聊里记下的信息，私聊时同样能被用上。
+    """
+
+    __tablename__ = "memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    content: Mapped[str] = mapped_column(String(200))
+    # 来源会话被删除时记忆仍然保留，所以用 SET NULL
+    source_conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

@@ -7,6 +7,9 @@ from aidiscussion.llm.base import LLMMessage
 
 
 class MockLLM:
+    # 离线模式不生成摘要：它只会复读用户输入，压缩出来的「摘要」没有意义
+    supports_summary = False
+
     def __init__(self, *, chunk_size: int = 6, delay: float = 0.0) -> None:
         self._chunk_size = max(1, chunk_size)
         self._delay = delay

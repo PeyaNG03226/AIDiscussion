@@ -61,3 +61,24 @@ def test_empty_persona_falls_back_to_generated_identity() -> None:
     prompt = build_prompt(member=ai, history=[], roster=[ai], is_group=False)
 
     assert "新人" in prompt[0].content
+
+
+def test_summary_and_memories_are_injected_into_system_prompt() -> None:
+    me = make_member("me", "我", kind=MemberKind.HUMAN)
+    ai = make_member("ai", "私人助理", prompt="你是私人助理")
+
+    prompt = build_prompt(
+        member=ai,
+        history=[make_message(9, me, "继续")],
+        roster=[me, ai],
+        is_group=False,
+        summary="之前聊过装修预算，定在 20 万",
+        memories=["用户喜欢简洁的回答", "用户住在杭州"],
+    )
+
+    system = prompt[0].content
+    assert "更早的对话已经被压缩" in system
+    assert "装修预算" in system
+    assert "用户喜欢简洁的回答" in system
+    assert "用户住在杭州" in system
+    assert prompt[1].content == "继续"

@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
 
+    # 上下文预算：超过后把更早的消息压缩成摘要
+    context_max_tokens: int = 2400
+    context_keep_recent: int = 12
+
+    # 长期记忆：从用户消息里提取跨会话事实，并在组装上下文时召回
+    memory_enabled: bool = True
+    memory_top_k: int = 5
+
     @property
     def has_llm_key(self) -> bool:
         if self.llm_api_key is None:

@@ -28,7 +28,9 @@ from aidiscussion.db.models import (
 from aidiscussion.llm.base import LLMClient, LLMMessage
 from aidiscussion.llm.errors import LLMError
 from aidiscussion.repositories import messages as message_repo
+from aidiscussion.services import compression, memory
 from aidiscussion.services.context import build_prompt
+from aidiscussion.services.tokens import trim_history
 
 logger = logging.getLogger(__name__)
 
@@ -182,13 +184,27 @@ async def generate_replies(
 
     roster = [link.member for link in conversation.member_links]
 
+    # 只在一轮真的要发言时才做压缩与记忆召回，纯静默的消息不产生额外开销
+    window = await compression.prepare_window(
+        session, llm, conversation, history_limit=history_limit
+    )
+    recalled = await memory.recall(session, user_message.content)
+
     for member in targets:
         # 每个成员都重新读一次历史：同一轮里先发言的 AI，后面的 AI 能看到
         history = await message_repo.recent_messages(
             session, conversation.id, limit=history_limit
         )
+        # 已经被摘要覆盖的消息不再重复发送
+        history = [item for item in history if item.id > window.up_to_message_id]
+        history = trim_history(history, window.max_tokens)
         prompt = build_prompt(
-            member=member, history=history, roster=roster, is_group=is_group
+            member=member,
+            history=history,
+            roster=roster,
+            is_group=is_group,
+            summary=window.summary,
+            memories=recalled,
         )
 
         yield ReplyStart(member=member)

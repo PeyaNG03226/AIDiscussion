@@ -16,7 +16,7 @@ from aidiscussion.llm.factory import get_llm
 from aidiscussion.repositories import conversations as conv_repo
 from aidiscussion.repositories import members as member_repo
 from aidiscussion.repositories import messages as message_repo
-from aidiscussion.services import chat
+from aidiscussion.services import chat, memory
 from aidiscussion.services.chat import ReplyDelta, ReplyDone, ReplyFailed, ReplyStart
 from aidiscussion.services.workspace import ensure_workspace
 
@@ -35,6 +35,7 @@ HELP = """可用命令：
   /kick <名字>        把 AI 成员移出当前群
   /mode <模式>        群聊模式：mention / free / supervisor
   /history [条数]     查看最近消息
+  /memory             查看长期记忆
   /help               显示本帮助
   /exit               退出
 """
@@ -137,6 +138,7 @@ class ChatApp:
             "kick": self._cmd_kick,
             "mode": self._cmd_mode,
             "history": self._cmd_history,
+            "memory": self._cmd_memory,
         }
 
         if command in ("exit", "quit"):
@@ -320,6 +322,15 @@ class ChatApp:
                 suffix = "（发送失败）" if message.status is MessageStatus.FAILED else ""
                 self._out(f"{message.sender.name}：{message.content}{suffix}")
 
+    async def _cmd_memory(self, _argument: str) -> None:
+        async with self._db.session() as session:
+            memories = await memory.list_all(session)
+        if not memories:
+            self._out("还没有长期记忆；多聊几句，AI 会记住关于你的事")
+            return
+        for item in memories:
+            self._out(f"#{item.id} {item.content}")
+
     # ---------- 发言 ----------
 
     async def send(self, text: str) -> None:
@@ -358,6 +369,10 @@ class ChatApp:
                         self._write("\n")
                     self._write_error(f"[回复中断] {event.error}\n")
                     printed_header = False
+
+            await memory.extract_and_store(
+                session, self._llm, content=text, conversation_id=conversation.id
+            )
 
     # ---------- 辅助 ----------
 

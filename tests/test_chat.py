@@ -10,6 +10,7 @@ from aidiscussion.llm.base import LLMMessage
 from aidiscussion.llm.errors import LLMConnectionError
 from aidiscussion.repositories import conversations as conv_repo
 from aidiscussion.repositories import members as member_repo
+from aidiscussion.repositories import memories as memory_repo
 from aidiscussion.repositories import messages as message_repo
 from aidiscussion.services import chat
 from aidiscussion.services.chat import ReplyDelta, ReplyDone, ReplyFailed, ReplyStart
@@ -223,6 +224,24 @@ def test_parse_mentions() -> None:
     assert chat.parse_mentions("@法务 看看这个") == ["法务"]
     assert chat.parse_mentions("@法务 @地产顾问 你们说") == ["法务", "地产顾问"]
     assert chat.parse_mentions("没有提到谁") == []
+
+
+async def test_recalled_memories_are_injected_into_prompt(session: AsyncSession) -> None:
+    me, _, conversation = await setup_conversation(session, names=("法务",))
+    await memory_repo.add_memory(session, content="用户正在处理一起房屋租赁纠纷")
+    message = await chat.post_user_message(
+        session,
+        conversation_id=conversation.id,
+        sender_id=me.id,
+        content="这个房屋租赁纠纷怎么处理",
+    )
+    llm = FakeLLM("先看合同条款")
+
+    await run_replies(session, llm, conversation, message, mode=chat.ReplyMode.FREE)
+
+    system = llm.calls[0][0].content
+    assert "长期记忆" in system
+    assert "房屋租赁纠纷" in system
 
 
 async def test_mention_all_targets_everyone(session: AsyncSession) -> None:
