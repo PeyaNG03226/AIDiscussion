@@ -83,7 +83,8 @@ class Conversation(Base):
         back_populates="conversation",
         cascade="all, delete-orphan",
         lazy="selectin",
-        order_by="ConversationMember.joined_at",
+        # 同一批入群的成员 joined_at 可能完全相同，用 member_id 兜底保证顺序稳定
+        order_by=lambda: (ConversationMember.joined_at, ConversationMember.member_id),
     )
 
 

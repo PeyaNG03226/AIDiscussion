@@ -51,7 +51,7 @@ async def get_conversation(session: AsyncSession, conversation_id: str) -> Conve
 async def list_conversations(session: AsyncSession, *, limit: int = 100) -> list[Conversation]:
     """按最近活跃排序：有消息用最后消息时间，否则用创建时间。"""
     activity = func.coalesce(Conversation.last_message_at, Conversation.created_at)
-    stmt = select(Conversation).order_by(activity.desc()).limit(limit)
+    stmt = select(Conversation).order_by(activity.desc(), Conversation.id).limit(limit)
     return list((await session.execute(stmt)).scalars().all())
 
 

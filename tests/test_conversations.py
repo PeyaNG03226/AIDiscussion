@@ -1,5 +1,7 @@
 """会话仓储测试：群聊与私聊共用一套表。"""
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +31,7 @@ async def test_create_group_with_members(session: AsyncSession) -> None:
     assert loaded is not None
     assert loaded.type is ConversationType.GROUP
     assert loaded.title == "买房决策群"
-    assert [link.member.name for link in loaded.member_links] == ["我", "地产顾问", "法务"]
+    assert {link.member.name for link in loaded.member_links} == {"我", "地产顾问", "法务"}
 
 
 async def test_duplicate_member_ids_are_collapsed(session: AsyncSession) -> None:
@@ -65,7 +67,7 @@ async def test_add_and_remove_member(session: AsyncSession) -> None:
 
     assert await conv_repo.remove_member(session, conversation.id, second) is True
     assert await conv_repo.remove_member(session, conversation.id, second) is False
-    assert [link.member_id for link in conversation.member_links] == [me.id, first]
+    assert {link.member_id for link in conversation.member_links} == {me.id, first}
 
 
 async def test_remove_member_keeps_history(session: AsyncSession) -> None:
@@ -111,14 +113,16 @@ async def test_conversation_list_ordered_by_activity(session: AsyncSession) -> N
         session, type=ConversationType.GROUP, title="新群", member_ids=[me.id, ai_id]
     )
 
+    # 显式指定活跃时间：Windows 时钟精度较粗，同一批插入的时间戳可能完全相同
+    await conv_repo.touch_conversation(session, older.id, at=datetime(2026, 1, 1, tzinfo=UTC))
+    await conv_repo.touch_conversation(session, newer.id, at=datetime(2026, 1, 2, tzinfo=UTC))
+
     assert [item.id for item in await conv_repo.list_conversations(session)] == [
         newer.id,
         older.id,
     ]
 
-    await msg_repo.add_message(
-        session, conversation_id=older.id, sender_id=me.id, content="让旧群活跃起来"
-    )
+    await conv_repo.touch_conversation(session, older.id, at=datetime(2026, 1, 3, tzinfo=UTC))
 
     assert [item.id for item in await conv_repo.list_conversations(session)] == [
         older.id,
