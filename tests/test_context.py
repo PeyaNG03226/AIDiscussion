@@ -1,0 +1,63 @@
+"""上下文字符串拼装测试。"""
+
+from aidiscussion.db.models import Member, MemberKind, Message
+from aidiscussion.services.context import build_prompt
+
+
+def make_member(member_id: str, name: str, *, kind=MemberKind.AI, prompt: str = "") -> Member:
+    return Member(id=member_id, name=name, kind=kind, system_prompt=prompt, temperature=0.7)
+
+
+def make_message(
+    message_id: int, sender: Member, content: str, *, conversation_id: str = "c1"
+) -> Message:
+    return Message(
+        id=message_id,
+        conversation_id=conversation_id,
+        sender_id=sender.id,
+        sender=sender,
+        content=content,
+    )
+
+
+def test_direct_chat_has_no_name_prefix() -> None:
+    me = make_member("me", "我", kind=MemberKind.HUMAN)
+    ai = make_member("ai", "私人助理", prompt="你是效率至上的私人助理")
+    history = [make_message(1, me, "帮我排个计划")]
+
+    prompt = build_prompt(member=ai, history=history, roster=[me, ai], is_group=False)
+
+    assert "效率至上的私人助理" in prompt[0].content
+    assert prompt[1].role == "user"
+    assert prompt[1].content == "帮我排个计划"
+
+
+def test_group_chat_marks_speaker_and_own_messages() -> None:
+    me = make_member("me", "我", kind=MemberKind.HUMAN)
+    lawyer = make_member("lawyer", "法务", prompt="你是严谨的法务")
+    agent = make_member("agent", "地产顾问", prompt="你是资深地产顾问")
+    history = [
+        make_message(1, me, "这个合同能签吗"),
+        make_message(2, lawyer, "先看违约金条款"),
+        make_message(3, agent, "我觉得价格还能再谈"),
+    ]
+
+    prompt = build_prompt(
+        member=lawyer, history=history, roster=[me, lawyer, agent], is_group=True
+    )
+
+    system = prompt[0].content
+    assert "多人群聊" in system
+    assert "地产顾问" in system
+    assert "法务" in system
+    assert prompt[1].content == "我：这个合同能签吗"
+    assert prompt[2].role == "assistant"
+    assert prompt[2].content == "先看违约金条款"
+    assert prompt[3].content == "地产顾问：我觉得价格还能再谈"
+
+
+def test_empty_persona_falls_back_to_generated_identity() -> None:
+    ai = make_member("ai", "新人", prompt="  ")
+    prompt = build_prompt(member=ai, history=[], roster=[ai], is_group=False)
+
+    assert "新人" in prompt[0].content
