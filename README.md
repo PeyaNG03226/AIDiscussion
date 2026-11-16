@@ -51,6 +51,28 @@ uv run aidiscussion --desktop       # 桌面悬浮球模式
 - 关闭聊天窗口：缩回悬浮球，程序继续在后台运行
 - 右键悬浮球：退出
 
+### 像普通软件一样启动（Windows）
+
+第一次先安装桌面依赖：
+
+```bash
+uv sync --extra desktop
+```
+
+然后创建桌面快捷方式，之后双击桌面上的 **AIDiscussion** 图标即可，不会出现终端黑框：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-shortcut.ps1
+```
+
+希望登录 Windows 后自动悬浮，加上 `-Startup`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-shortcut.ps1 -Startup
+```
+
+关闭聊天窗口只会缩回悬浮球；要彻底退出请右键悬浮球。若更新了代码，需要右键退出后重新打开。
+
 桌面壳基于 pywebview，仅是 Web UI 的外壳，数据和服务与浏览器版完全一致。
 Windows 需要 WebView2 运行时（Win10/11 通常已自带）；pywebview 属于可选依赖，
 未安装时 `--desktop` 会提示执行 `uv sync --extra desktop`，不影响 `--serve`。

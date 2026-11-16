@@ -29,6 +29,10 @@ dependencies = [
 [project.scripts]
 aidiscussion = "aidiscussion.__main__:main"
 
+[project.gui-scripts]
+# Windows 上会生成无控制台的 aidiscussion-desktop.exe，供桌面快捷方式使用
+aidiscussion-desktop = "aidiscussion.desktop.launcher:main"
+
 [project.optional-dependencies]
 # 桌面壳是可选能力：`uv sync --extra desktop` 后才启用 --desktop
 desktop = ["pywebview>=5.0"]
