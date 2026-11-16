@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIDiscussion</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%234f7cff'/%3E%3Ctext x='50' y='68' font-size='54' text-anchor='middle' fill='white' font-family='sans-serif'%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div class="brand-text">
+          <strong>AIDiscussion</strong>
+          <span>AI 群聊工作台</span>
+        </div>
+        <span id="conn" class="conn-dot" title="连接状态"></span>
+      </div>
+
+      <button id="newGroupBtn" class="btn primary block">＋ 新建群聊</button>
+
+      <div class="section-title">会话</div>
+      <ul id="conversationList" class="list"></ul>
+
+      <div class="section-title">
+        <span>AI 成员</span>
+        <button id="manageMembersBtn" class="link-btn">管理当前群</button>
+      </div>
+      <ul id="contactList" class="list"></ul>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <div class="chat-title">
+          <h1 id="chatTitle">选择一个会话</h1>
+          <p id="chatMeta"></p>
+        </div>
+        <div class="chat-actions">
+          <div id="modeSwitch" class="segmented" hidden>
+            <button data-mode="mention">点名</button>
+            <button data-mode="free">自由</button>
+            <button data-mode="supervisor">主持</button>
+          </div>
+          <button id="membersBtn" class="btn ghost" hidden>成员</button>
+        </div>
+      </header>
+
+      <div id="messages" class="messages">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-mark">A</div>
+          <h2>欢迎来到 AIDiscussion</h2>
+          <p>在左侧选择会话开始聊天，或新建一个群聊，把不同人设的 AI 拉进来一起讨论。</p>
+        </div>
+      </div>
+
+      <form id="composer" class="composer" hidden>
+        <textarea id="input" rows="1" placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
+        <button type="submit" class="btn primary">发送</button>
+      </form>
+    </main>
+  </div>
+
+  <div id="membersModal" class="modal hidden">
+    <div class="modal-card">
+      <header class="modal-head">
+        <h2>成员管理</h2>
+        <button class="icon-btn" data-close="membersModal">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="section-title">当前成员</div>
+        <ul id="memberList" class="member-list"></ul>
+
+        <div id="addMemberBlock" class="stack">
+          <div class="section-title">把已有 AI 拉进群</div>
+          <div class="row">
+            <select id="addMemberSelect"></select>
+            <button id="addMemberBtn" class="btn">加入</button>
+          </div>
+        </div>
+
+        <div class="section-title">新建 AI 成员</div>
+        <div class="stack">
+          <input id="newMemberName" placeholder="名字，例如：财务顾问" />
+          <textarea id="newMemberPersona" rows="3" placeholder="人设：你是谁、擅长什么、说话风格"></textarea>
+          <input id="newMemberModel" placeholder="模型名（留空使用默认）" />
+          <button id="createMemberBtn" class="btn primary">创建并加入当前群</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="newGroupModal" class="modal hidden">
+    <div class="modal-card">
+      <header class="modal-head">
+        <h2>新建群聊</h2>
+        <button class="icon-btn" data-close="newGroupModal">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="stack">
+          <input id="groupTitle" placeholder="群名称，例如：项目评审" />
+          <div class="section-title">选择成员</div>
+          <ul id="groupMemberOptions" class="member-list"></ul>
+          <button id="createGroupBtn" class="btn primary">创建群聊</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

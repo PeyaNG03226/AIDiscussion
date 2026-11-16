@@ -163,3 +163,19 @@ def test_websocket_streams_reply_and_persists(tmp_path) -> None:
 
         messages = client.get(f"/api/conversations/{conversation_id}/messages").json()
         assert [item["sender_name"] for item in messages] == ["我", "通用助手"]
+
+
+async def test_web_ui_is_served(api) -> None:
+    client, _, _ = api
+
+    page = await client.get("/")
+    assert page.status_code == 200
+    assert "AIDiscussion" in page.text
+
+    script = await client.get("/app.js")
+    assert script.status_code == 200
+    assert "reply_delta" in script.text
+
+    styles = await client.get("/styles.css")
+    assert styles.status_code == 200
+    assert "--accent" in styles.text
