@@ -99,8 +99,12 @@ async def get_direct_conversation(
     if member_a == member_b:
         raise ValueError("私聊双方不能是同一个成员")
 
-    pair = select(ConversationMember.conversation_id).where(
-        ConversationMember.member_id.in_([member_a, member_b])
+    # 必须同时包含双方：只按「包含其中任一人」筛会把别人的私聊也捞进来
+    pair = (
+        select(ConversationMember.conversation_id)
+        .where(ConversationMember.member_id.in_([member_a, member_b]))
+        .group_by(ConversationMember.conversation_id)
+        .having(func.count(ConversationMember.member_id) == 2)
     )
     stmt = (
         select(Conversation)

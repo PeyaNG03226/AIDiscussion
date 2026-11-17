@@ -2,7 +2,7 @@
 
 和一群 AI 成员一起群聊、私聊的桌面聊天工作台。
 
-群里的成员是各家 AI：可以随时添加、踢除；也可以单独私聊某个 AI。
+群里的成员是各家 AI：豆包、Kimi、DeepSeek、通义千问可以同时在一个群里说话；也可以单独私聊某个 AI。
 群聊支持 @ 点名、自由讨论和主持人调度，私聊与群聊共用同一套会话与消息模型。
 
 > 项目正在按章节迭代，当前进度：**第 10 章 · 文档与发布（v0.1.0）**。
@@ -42,6 +42,28 @@ uv run aidiscussion --desktop       # 桌面悬浮球模式
 - WebSocket 流式渲染：`reply_start` 建气泡、`reply_delta` 逐字追加、`reply_done` 定稿
 - 三种群聊模式（点名 / 自由讨论 / 主持人调度）按会话记忆在 `localStorage`
 - 当前会话、断线重连、成员管理与新建群聊都在同一页面完成
+
+## 多厂商模型
+
+每个 AI 成员绑定一个**模型配置**（`members.provider`）。内置四家（豆包、Kimi、DeepSeek、通义千问）
+的地址、模型名、密钥在首次启动时按 `.env` 播种到 `providers` 表，之后统一在界面里管理。
+
+| 厂商 id | 显示名 | 默认模型 | 密钥环境变量 |
+| --- | --- | --- | --- |
+| `doubao` | 豆包 | `doubao-seed-character-251128` | `AIDISCUSSION_DOUBAO_API_KEY` |
+| `kimi` | Kimi | `kimi-k2.6` | `AIDISCUSSION_KIMI_API_KEY` |
+| `deepseek` | DeepSeek | `deepseek-chat` | `AIDISCUSSION_DEEPSEEK_API_KEY`（留空则复用 `AIDISCUSSION_LLM_*`） |
+| `qwen` | 通义千问 | `qwen3.8-flash` | `AIDISCUSSION_QWEN_API_KEY` |
+
+- 只填自己有的那几家即可，**没配密钥的厂商会回退到离线 Mock**，界面不会报错
+- 模型名按账号权限不同，报「模型不存在 / 无权限」时在「模型接入」里改成账号可用的模型 id
+- 豆包报 `ModelNotOpen` 表示该模型还没开通：去火山方舟控制台「开通管理」激活，或创建推理接入点后把 `ep-xxxx` 填进模型名
+- Kimi 的 k 系列只接受 `temperature=1`，代码里对该厂商不发送 temperature，避免 400
+- Web 界面「新建 AI 成员」里可以直接选厂商；成员名建议就用模型名，一眼能看出谁是谁
+- 「管理当前群 → 模型接入」可以新增任意 OpenAI 兼容服务（填 Base URL、模型名、密钥，本地 Ollama 也能加），
+  也能修改内置四家的配置；`.env` 只在首次启动时播种，之后以界面为准
+- 还有成员在用的模型不能删除，接口和界面都会拦下来
+- `uv run aidiscussion --check` 会列出每个厂商的密钥状态
 
 ## 桌面悬浮球
 

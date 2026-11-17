@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from aidiscussion.db.models import Message, MessageStatus
+from aidiscussion.db.models import Conversation, Message, MessageStatus
 from aidiscussion.repositories.conversations import touch_conversation
 
 
@@ -79,6 +79,28 @@ async def recent_messages(
     stmt = stmt.order_by(Message.id.desc()).limit(limit)
     rows = (await session.execute(stmt)).scalars().all()
     return list(reversed(rows))
+
+
+async def recent_elsewhere(
+    session: AsyncSession,
+    conversation_id: str,
+    *,
+    limit: int = 8,
+) -> list[tuple[Message, str]]:
+    """取其他会话的最近消息，附带会话标题，用于跨会话背景。
+
+    返回 (消息, 会话标题) 的组合，按时间正序。
+    """
+    stmt = (
+        select(Message, Conversation.title)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .options(joinedload(Message.sender))
+        .where(Message.conversation_id != conversation_id)
+        .order_by(Message.id.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(message, title) for message, title in reversed(rows)]
 
 
 async def messages_after(

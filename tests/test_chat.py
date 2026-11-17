@@ -1,5 +1,6 @@
 """会话编排测试：谁回复、回复内容是否落库、失败怎么处理。"""
 
+import random
 from collections.abc import AsyncIterator, Sequence
 
 import pytest
@@ -88,6 +89,44 @@ async def run_replies(session: AsyncSession, llm, conversation, message, **kwarg
     ]
 
 
+async def test_each_member_uses_its_own_provider_client(session: AsyncSession) -> None:
+    me = await member_repo.get_self_member(session)
+    doubao = await member_repo.create_member(session, name="豆包", provider="doubao")
+    kimi = await member_repo.create_member(session, name="Kimi", provider="kimi")
+    conversation = await conv_repo.create_conversation(
+        session,
+        type=ConversationType.GROUP,
+        title="多厂商群",
+        member_ids=[me.id, doubao.id, kimi.id],
+    )
+    message = await chat.post_user_message(
+        session, conversation_id=conversation.id, sender_id=me.id, content="大家好"
+    )
+
+    clients = {"doubao": FakeLLM("豆包在此"), "kimi": FakeLLM("Kimi 在此")}
+    used: list[str] = []
+
+    def resolve(member: Member):
+        used.append(member.provider)
+        return clients[member.provider]
+
+    events = await run_replies(
+        session,
+        FakeLLM("默认模型不该被用到"),
+        conversation,
+        message,
+        mode=chat.ReplyMode.FREE,
+        llm_for_member=resolve,
+    )
+
+    assert sorted(used) == ["doubao", "kimi"]
+    assert {event.member.name for event in events if isinstance(event, ReplyStart)} == {
+        "豆包",
+        "Kimi",
+    }
+    assert clients["doubao"].calls and clients["kimi"].calls
+
+
 async def test_direct_chat_replies_and_persists(session: AsyncSession) -> None:
     me, (assistant,), conversation = await setup_conversation(
         session, names=("私人助理",), direct=True
@@ -148,7 +187,8 @@ async def test_free_mode_lets_members_see_each_other(session: AsyncSession) -> N
     events = await run_replies(session, llm, conversation, message, mode=chat.ReplyMode.FREE)
 
     done = [event for event in events if isinstance(event, ReplyDone)]
-    assert [item.member.name for item in done] == ["法务", "地产顾问"]
+    # 自由模式顺序是随机的，这里只校验「两人都发言」且后发者能看到先发者的内容
+    assert {item.member.name for item in done} == {"法务", "地产顾问"}
     assert len(llm.calls) == 2
 
     second_prompt = "\n".join(item.content for item in llm.calls[1])
@@ -254,7 +294,69 @@ async def test_mention_all_targets_everyone(session: AsyncSession) -> None:
     events = await run_replies(session, llm, conversation, message)
 
     done = [event for event in events if isinstance(event, ReplyDone)]
-    assert [item.member.name for item in done] == ["法务", "地产顾问"]
+    assert {item.member.name for item in done} == {"法务", "地产顾问"}
+
+
+async def test_mention_all_aliases(session: AsyncSession) -> None:
+    "「@全体成员」是大家最常输的写法，必须命中所有人，不能因为多了两个字就没人回。"
+    _, _, conversation = await setup_conversation(session, names=("法务", "地产顾问"))
+    ids = {member.id for member in chat.ai_members_of(conversation)}
+
+    for content in ("@全体成员 都说说", "@所有人 看下", "@大家 评价一下"):
+        targets = chat.select_targets(conversation, content, mode=chat.ReplyMode.MENTION)
+        assert {member.id for member in targets} == ids
+
+
+async def test_mention_keeps_user_order(session: AsyncSession) -> None:
+    "点名到具体成员时按用户 @ 的顺序来，别自作主张打乱。"
+    _, _, conversation = await setup_conversation(session, names=("法务", "地产顾问"))
+
+    targets = chat.select_targets(
+        conversation, "@地产顾问 先说 @法务 补充", mode=chat.ReplyMode.MENTION
+    )
+    assert [member.name for member in targets] == ["地产顾问", "法务"]
+
+
+async def test_free_mode_order_is_shuffled(session: AsyncSession) -> None:
+    "自由讨论每轮顺序随机，避免每次都按建群顺序开口。"
+    _, _, conversation = await setup_conversation(session, names=("甲", "乙", "丙", "丁"))
+    ids = {member.id for member in chat.ai_members_of(conversation)}
+
+    orders = {
+        tuple(
+            member.id
+            for member in chat.select_targets(
+                conversation, "随便聊", mode=chat.ReplyMode.FREE, rng=random.Random(seed)
+            )
+        )
+        for seed in range(8)
+    }
+
+    assert all(set(order) == ids for order in orders)
+    assert len(orders) > 1
+
+
+async def test_direct_chat_sees_recent_group_messages(session: AsyncSession) -> None:
+    "群聊里刚出过谜题，私聊问同一个模型时必须能看到这段背景。"
+    me, members, group = await setup_conversation(session, names=("豆包",))
+    await chat.post_user_message(
+        session, conversation_id=group.id, sender_id=me.id, content="小草连在一起 打一字"
+    )
+    direct = await conv_repo.create_conversation(
+        session,
+        type=ConversationType.DIRECT,
+        title="与 豆包 的私聊",
+        member_ids=[me.id, members[0].id],
+    )
+    message = await chat.post_user_message(
+        session, conversation_id=direct.id, sender_id=me.id, content="刚刚我出的题还记得吗"
+    )
+
+    llm = FakeLLM("你出的是「小草连在一起」")
+    await run_replies(session, llm, direct, message)
+
+    system = llm.calls[0][0].content
+    assert "[群聊] 我：小草连在一起 打一字" in system
 
 
 async def test_invalid_mode_raises(session: AsyncSession) -> None:

@@ -14,7 +14,7 @@ from aidiscussion.llm.errors import (
     LLMResponseError,
     LLMServerError,
 )
-from aidiscussion.llm.factory import build_llm
+from aidiscussion.llm.factory import build_llm_for
 from aidiscussion.llm.mock import MockLLM
 from aidiscussion.llm.openai_compatible import OpenAICompatibleClient, parse_sse_line
 
@@ -68,6 +68,31 @@ async def test_stream_parses_sse_and_sends_payload() -> None:
     assert body["stream"] is True  # type: ignore[index]
     assert body["temperature"] == 0.7  # type: ignore[index]
     assert body["messages"] == [{"role": "user", "content": "在吗"}]  # type: ignore[index]
+
+
+async def test_client_can_omit_temperature_for_strict_models() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, text=SSE_BODY)
+
+    transport = httpx.MockTransport(handler)
+    http = httpx.AsyncClient(transport=transport, base_url="https://llm.test/v1")
+    client = OpenAICompatibleClient(
+        api_key="sk-test",
+        base_url="https://llm.test/v1",
+        model="kimi-test",
+        max_retries=0,
+        backoff=0,
+        send_temperature=False,
+        client=http,
+    )
+
+    await collect(client, "在吗")
+    await client.aclose()
+
+    assert "temperature" not in captured["body"]  # type: ignore[operator]
 
 
 async def test_auth_error_is_not_retried() -> None:
@@ -181,7 +206,8 @@ async def test_mock_streams_echo_reply() -> None:
 
 
 async def test_factory_falls_back_to_mock_without_key() -> None:
-    llm = build_llm(Settings(_env_file=None))
+    settings = Settings(_env_file=None)
+    llm = build_llm_for(settings.provider_spec(None), settings)
     try:
         assert isinstance(llm, MockLLM)
     finally:
@@ -189,8 +215,42 @@ async def test_factory_falls_back_to_mock_without_key() -> None:
 
 
 async def test_factory_builds_openai_client_with_key() -> None:
-    llm = build_llm(Settings(_env_file=None, llm_api_key="sk-12345678"))
+    settings = Settings(_env_file=None, llm_api_key="sk-12345678")
+    llm = build_llm_for(settings.provider_spec("deepseek"), settings)
     try:
         assert isinstance(llm, OpenAICompatibleClient)
     finally:
         await llm.aclose()
+
+
+def test_each_provider_uses_its_own_endpoint_and_key() -> None:
+    settings = Settings(
+        _env_file=None,
+        llm_api_key="sk-deepseek",
+        doubao_api_key="sk-doubao",
+        kimi_api_key="sk-kimi",
+        qwen_api_key="sk-qwen",
+    )
+
+    doubao = settings.provider_spec("doubao")
+    kimi = settings.provider_spec("kimi")
+    qwen = settings.provider_spec("qwen")
+    deepseek = settings.provider_spec(None)
+
+    assert doubao.base_url.startswith("https://ark.cn-beijing.volces.com")
+    assert kimi.base_url == "https://api.moonshot.cn/v1"
+    assert qwen.base_url.startswith("https://dashscope.aliyuncs.com")
+    # 未填 deepseek_api_key 时沿用旧的 llm_* 配置
+    assert deepseek.api_key is not None
+    assert deepseek.api_key.get_secret_value() == "sk-deepseek"
+    assert deepseek.has_key and doubao.has_key and kimi.has_key and qwen.has_key
+    # Kimi 的 k 系列只接受 temperature=1，别给它发 temperature
+    assert kimi.send_temperature is False
+    assert doubao.send_temperature is True
+
+
+def test_unknown_provider_falls_back_to_default() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.provider_spec("openai").id == "deepseek"
+    assert settings.provider_spec(None).id == "deepseek"

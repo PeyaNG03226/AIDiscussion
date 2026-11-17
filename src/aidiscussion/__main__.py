@@ -41,6 +41,10 @@ def render_check(settings: Settings) -> str:
         f"密钥        : {settings.masked_llm_key()}",
         f"密钥状态    : {'已配置' if settings.has_llm_key else '未配置'}",
     ]
+    lines.append("厂商状态    :")
+    for spec in settings.provider_specs():
+        status = f"已配置（{spec.model}）" if spec.has_key else "未配置，成员会回退到离线 Mock"
+        lines.append(f"  {spec.label:<8}: {status}")
     return "\n".join(lines)
 
 

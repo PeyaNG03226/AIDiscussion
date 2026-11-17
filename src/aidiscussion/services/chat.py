@@ -11,12 +11,14 @@
 from __future__ import annotations
 
 import logging
+import random
 import re
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aidiscussion.config import get_settings
 from aidiscussion.db.models import (
     Conversation,
     ConversationType,
@@ -35,7 +37,7 @@ from aidiscussion.services.tokens import trim_history
 logger = logging.getLogger(__name__)
 
 _MENTION_PATTERN = re.compile(r"@([^\s@，。,.!?！？:：]{1,20})")
-_ALL_ALIASES = {"all", "全体", "所有人"}
+_ALL_ALIASES = {"all", "全体", "全体成员", "全员", "所有人", "大家"}
 
 
 class ReplyMode:
@@ -71,6 +73,9 @@ class ReplyFailed:
 
 ChatEvent = ReplyStart | ReplyDelta | ReplyDone | ReplyFailed
 
+# 「这个成员该用哪个模型客户端」：生产环境按成员绑定的厂商路由，测试里直接返回同一个假模型
+LLMResolver = Callable[[Member], LLMClient]
+
 
 def parse_mentions(content: str) -> list[str]:
     return [match.group(1) for match in _MENTION_PATTERN.finditer(content)]
@@ -90,6 +95,7 @@ def select_targets(
     mode: str,
     *,
     max_replies: int = 4,
+    rng: random.Random | None = None,
 ) -> list[Member]:
     """纯函数：根据会话类型与模式决定本轮谁发言。"""
     ai_members = ai_members_of(conversation)
@@ -97,16 +103,26 @@ def select_targets(
     if conversation.type is ConversationType.DIRECT:
         return ai_members[:1]
 
+    # 点名到具体成员时按用户 @ 的顺序；其余情况打乱，避免每轮都是同一套顺序
+    shuffle = False
     if mode == ReplyMode.FREE:
         targets = ai_members
+        shuffle = True
     elif mode == ReplyMode.MENTION:
         names = parse_mentions(content)
         if any(name.lower() in _ALL_ALIASES for name in names):
             targets = ai_members
+            shuffle = True
         else:
-            targets = [member for member in ai_members if member.name in names]
+            targets = [
+                member for name in names for member in ai_members if member.name == name
+            ]
     else:
         raise ValueError(f"未知的群聊模式：{mode}")
+
+    if shuffle:
+        targets = list(targets)
+        (rng or random).shuffle(targets)
 
     return targets[: max(0, max_replies)]
 
@@ -171,6 +187,7 @@ async def generate_replies(
     mode: str = ReplyMode.MENTION,
     max_replies: int = 4,
     history_limit: int = 20,
+    llm_for_member: LLMResolver | None = None,
 ) -> AsyncIterator[ChatEvent]:
     is_group = conversation.type is ConversationType.GROUP
 
@@ -189,6 +206,13 @@ async def generate_replies(
         session, llm, conversation, history_limit=history_limit
     )
     recalled = await memory.recall(session, user_message.content)
+    # 跨会话背景：让私聊里的成员知道群里刚刚聊了什么（每天的工作台是一个整体）
+    settings = get_settings()
+    other_context: list[tuple[Message, str]] = []
+    if settings.cross_conversation_context and targets:
+        other_context = await message_repo.recent_elsewhere(
+            session, conversation.id, limit=settings.cross_context_messages
+        )
 
     for member in targets:
         # 每个成员都重新读一次历史：同一轮里先发言的 AI，后面的 AI 能看到
@@ -205,13 +229,16 @@ async def generate_replies(
             is_group=is_group,
             summary=window.summary,
             memories=recalled,
+            other_context=other_context,
         )
 
         yield ReplyStart(member=member)
 
         buffer: list[str] = []
+        # 每个成员用自己的厂商客户端：豆包 / Kimi / DeepSeek 可以同群发言
+        member_llm = llm_for_member(member) if llm_for_member is not None else llm
         try:
-            async for chunk in llm.stream_chat(
+            async for chunk in member_llm.stream_chat(
                 prompt,
                 model=member.model or None,
                 temperature=member.temperature,

@@ -61,11 +61,37 @@ class Member(Base):
     )
     name: Mapped[str] = mapped_column(String(50), unique=True)
     avatar: Mapped[str] = mapped_column(String(200), default="")
+    # 成员绑定的模型厂商（deepseek / kimi / doubao / qwen），密钥来自环境变量
+    provider: Mapped[str] = mapped_column(String(20), default="deepseek")
     model: Mapped[str | None] = mapped_column(String(80), default=None)
     system_prompt: Mapped[str] = mapped_column(Text, default="")
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Provider(Base):
+    """模型接入配置。
+
+    内置四家（豆包 / Kimi / DeepSeek / 通义千问）在首次启动时按 .env 播种，
+    之后界面里改的就是这份数据；用户也可以直接新增任意 OpenAI 兼容服务。
+    """
+
+    __tablename__ = "providers"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    label: Mapped[str] = mapped_column(String(50))
+    base_url: Mapped[str] = mapped_column(String(200))
+    model: Mapped[str] = mapped_column(String(80))
+    # 本地桌面应用，密钥跟着数据库走；接口返回时只给脱敏提示
+    api_key: Mapped[str] = mapped_column(String(300), default="")
+    # Kimi 等部分模型只接受 temperature=1，这类厂商不发热量参数
+    send_temperature: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
 
 class Conversation(Base):

@@ -63,6 +63,25 @@ def test_empty_persona_falls_back_to_generated_identity() -> None:
     assert "新人" in prompt[0].content
 
 
+def test_other_conversation_context_is_injected() -> None:
+    "私聊时要能看到群里刚刚聊的内容，否则用户一换会话 AI 就失忆。"
+    me = make_member("me", "我", kind=MemberKind.HUMAN)
+    ai = make_member("ai", "豆包", prompt="你是豆包")
+    group_message = make_message(7, me, "小草连在一起 打一字", conversation_id="group-1")
+
+    prompt = build_prompt(
+        member=ai,
+        history=[make_message(9, me, "刚刚我出的题还记得吗")],
+        roster=[me, ai],
+        is_group=False,
+        other_context=[(group_message, "AI 茶话会")],
+    )
+
+    system = prompt[0].content
+    assert "其他会话里的最近动态" in system
+    assert "[AI 茶话会] 我：小草连在一起 打一字" in system
+
+
 def test_summary_and_memories_are_injected_into_system_prompt() -> None:
     me = make_member("me", "我", kind=MemberKind.HUMAN)
     ai = make_member("ai", "私人助理", prompt="你是私人助理")

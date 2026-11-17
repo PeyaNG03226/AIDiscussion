@@ -4,7 +4,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from aidiscussion.config import DEFAULT_PROVIDER
 from aidiscussion.db.models import Conversation, Member, Message
+from aidiscussion.llm import registry
 
 
 class MemberOut(BaseModel):
@@ -12,6 +14,8 @@ class MemberOut(BaseModel):
     name: str
     kind: str
     avatar: str
+    provider: str
+    provider_label: str
     model: str | None
     system_prompt: str
     temperature: float
@@ -20,15 +24,44 @@ class MemberOut(BaseModel):
 
 class MemberCreate(BaseModel):
     name: str = Field(min_length=1, max_length=30)
+    provider: str = DEFAULT_PROVIDER
     system_prompt: str = ""
     model: str | None = None
     temperature: float = Field(default=0.7, ge=0, le=2)
 
 
 class MemberUpdate(BaseModel):
+    provider: str | None = None
     system_prompt: str | None = None
     model: str | None = None
     temperature: float | None = Field(default=None, ge=0, le=2)
+
+
+class ProviderOut(BaseModel):
+    id: str
+    label: str
+    base_url: str
+    model: str
+    has_key: bool
+    api_key_hint: str
+    is_builtin: bool
+
+
+class ProviderCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=30)
+    base_url: str = Field(min_length=1, max_length=200)
+    model: str = Field(min_length=1, max_length=80)
+    api_key: str = ""
+    send_temperature: bool = True
+
+
+class ProviderUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=30)
+    base_url: str | None = Field(default=None, min_length=1, max_length=200)
+    model: str | None = Field(default=None, min_length=1, max_length=80)
+    # 传空字符串表示清空密钥，传 None 表示保持原样
+    api_key: str | None = None
+    send_temperature: bool | None = None
 
 
 class MessageOut(BaseModel):
@@ -73,6 +106,8 @@ def member_out(member: Member) -> MemberOut:
         name=member.name,
         kind=member.kind.value,
         avatar=member.avatar,
+        provider=member.provider,
+        provider_label=registry.label_for(member.provider),
         model=member.model,
         system_prompt=member.system_prompt,
         temperature=member.temperature,

@@ -71,6 +71,40 @@ async def test_create_member_and_reject_duplicate(api) -> None:
     assert "财务" in {member["name"] for member in members}
 
 
+async def test_demo_members_are_bound_to_different_providers(api) -> None:
+    client, _, _ = api
+
+    members = (await client.get("/api/members")).json()
+    providers = {member["name"]: member["provider"] for member in members}
+
+    assert providers["豆包"] == "doubao"
+    assert providers["Kimi"] == "kimi"
+    assert providers["DeepSeek"] == "deepseek"
+    assert providers["通义千问"] == "qwen"
+
+
+async def test_providers_endpoint_lists_supported_vendors(api) -> None:
+    client, _, _ = api
+
+    providers = (await client.get("/api/providers")).json()
+    ids = {item["id"] for item in providers}
+
+    assert ids == {"doubao", "kimi", "deepseek", "qwen"}
+    assert all(item["label"] and "has_key" in item for item in providers)
+
+
+async def test_member_keeps_its_own_provider(api) -> None:
+    client, _, _ = api
+
+    created = await client.post("/api/members", json={"name": "Kimi 二号", "provider": "kimi"})
+    assert created.status_code == 201
+    assert created.json()["provider"] == "kimi"
+    assert created.json()["provider_label"] == "Kimi"
+
+    rejected = await client.post("/api/members", json={"name": "怪厂商", "provider": "openai"})
+    assert rejected.status_code == 400
+
+
 async def test_create_group_and_add_remove_member(api) -> None:
     client, _, _ = api
     member = (
@@ -146,7 +180,7 @@ def test_websocket_streams_reply_and_persists(tmp_path) -> None:
 
         with client.websocket_connect(f"/ws/conversations/{conversation_id}") as socket:
             socket.send_json(
-                {"type": "send", "content": "@通用助手 在吗", "mode": "mention"}
+                {"type": "send", "content": "@豆包 在吗", "mode": "mention"}
             )
             events = []
             while True:
@@ -162,7 +196,74 @@ def test_websocket_streams_reply_and_persists(tmp_path) -> None:
         assert reply == "你好呀"
 
         messages = client.get(f"/api/conversations/{conversation_id}/messages").json()
-        assert [item["sender_name"] for item in messages] == ["我", "通用助手"]
+        assert [item["sender_name"] for item in messages] == ["我", "豆包"]
+
+
+async def test_add_custom_provider_and_use_it(api) -> None:
+    "用户可以在界面里加任意 OpenAI 兼容模型，不用改代码或 .env。"
+    client, _, _ = api
+
+    created = await client.post(
+        "/api/providers",
+        json={
+            "label": "本地 Ollama",
+            "base_url": "http://localhost:11434/v1/",
+            "model": "qwen3:8b",
+        },
+    )
+    assert created.status_code == 201
+    provider = created.json()
+    assert provider["base_url"] == "http://localhost:11434/v1"
+    assert provider["has_key"] is False
+
+    member = await client.post(
+        "/api/members", json={"name": "本地千问", "provider": provider["id"]}
+    )
+    assert member.status_code == 201
+    assert member.json()["provider_label"] == "本地 Ollama"
+
+    options = (await client.get("/api/providers")).json()
+    assert provider["id"] in {item["id"] for item in options}
+
+
+async def test_provider_crud_guards(api) -> None:
+    client, _, _ = api
+
+    bad = await client.post(
+        "/api/providers",
+        json={"label": "缺协议", "base_url": "localhost:8000/v1", "model": "x"},
+    )
+    assert bad.status_code == 400
+
+    created = (
+        await client.post(
+            "/api/providers",
+            json={"label": "自建服务", "base_url": "https://llm.example.com/v1", "model": "m1"},
+        )
+    ).json()
+    member = (
+        await client.post("/api/members", json={"name": "自建", "provider": created["id"]})
+    ).json()
+
+    # 还有成员在用，不能删
+    blocked = await client.delete(f"/api/providers/{created['id']}")
+    assert blocked.status_code == 400
+    assert "成员" in blocked.json()["detail"]
+
+    # 改配置后注册表跟着更新
+    patched = await client.patch(
+        f"/api/providers/{created['id']}",
+        json={"model": "m2", "api_key": "sk-test-1234"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["model"] == "m2"
+    assert patched.json()["api_key_hint"] == "sk-t…1234"
+
+    # 成员换到别家后就能删了
+    await client.patch(f"/api/members/{member['id']}", json={"provider": "deepseek"})
+    removed = await client.delete(f"/api/providers/{created['id']}")
+    assert removed.status_code == 200
+    assert removed.json() == {"deleted": True}
 
 
 async def test_web_ui_is_served(api) -> None:

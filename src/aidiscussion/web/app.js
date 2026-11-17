@@ -20,6 +20,7 @@ const api = {
   get: (path) => api.request("GET", path),
   post: (path, body) => api.request("POST", path, body),
   del: (path) => api.request("DELETE", path),
+  patch: (path, body) => api.request("PATCH", path, body),
 };
 
 const MODE_LABELS = { mention: "点名", free: "自由讨论", supervisor: "主持人调度" };
@@ -28,12 +29,15 @@ const state = {
   me: null,
   conversations: [],
   workspaceMembers: [],
+  providers: [],
   detail: null,
   currentId: null,
   mode: "mention",
   modes: JSON.parse(localStorage.getItem("aidiscussion:modes") || "{}"),
   ws: null,
   streams: new Map(),
+  providers: [],
+  editingProvider: null,
 };
 
 const el = {
@@ -52,6 +56,14 @@ const el = {
   memberList: document.getElementById("memberList"),
   addMemberBlock: document.getElementById("addMemberBlock"),
   addMemberSelect: document.getElementById("addMemberSelect"),
+  newMemberProvider: document.getElementById("newMemberProvider"),
+  providerList: document.getElementById("providerList"),
+  providerForm: document.getElementById("providerForm"),
+  providerLabel: document.getElementById("providerLabel"),
+  providerBaseUrl: document.getElementById("providerBaseUrl"),
+  providerModel: document.getElementById("providerModel"),
+  providerKey: document.getElementById("providerKey"),
+  providerNoTemperature: document.getElementById("providerNoTemperature"),
   newGroupModal: document.getElementById("newGroupModal"),
   groupTitle: document.getElementById("groupTitle"),
   groupMemberOptions: document.getElementById("groupMemberOptions"),
@@ -59,9 +71,42 @@ const el = {
 
 /* ---------------- 基础工具 ---------------- */
 
-function avatarFor(name, extra = "") {
+/* 各厂商的官方图标，放在 web/assets 下，离线也能显示 */
+const PROVIDER_LOGOS = {
+  doubao: "assets/doubao.png",
+  kimi: "assets/kimi.png",
+  deepseek: "assets/deepseek.png",
+  qwen: "assets/qwen.png",
+};
+
+/* 我自己的头像 */
+const SELF_AVATAR = "assets/me.png";
+
+function memberById(id) {
+  return (
+    state.workspaceMembers.find((member) => member.id === id) ||
+    state.detail?.members?.find((member) => member.id === id) ||
+    null
+  );
+}
+
+function logoFor(member) {
+  return member && member.kind === "ai" ? member.provider : null;
+}
+
+function avatarFor(name, extra = "", provider = null, image = null) {
   const node = document.createElement("div");
   node.className = "avatar " + extra;
+  const source = image || (provider ? PROVIDER_LOGOS[provider] : null);
+  if (source) {
+    node.classList.add("logo");
+    node.title = name || "";
+    const picture = document.createElement("img");
+    picture.src = source;
+    picture.alt = "";
+    node.append(picture);
+    return node;
+  }
   node.textContent = (name || "?").trim().charAt(0) || "?";
   let hash = 0;
   for (const char of name || "") hash = (hash * 31 + char.codePointAt(0)) % 360;
@@ -98,17 +143,20 @@ function currentConversation() {
 async function init() {
   bindEvents();
   try {
-    const [me, conversations, members] = await Promise.all([
+    const [me, conversations, members, providers] = await Promise.all([
       api.get("/api/me"),
       api.get("/api/conversations"),
       api.get("/api/members"),
+      api.get("/api/providers"),
     ]);
     state.me = me;
     state.conversations = conversations;
     state.workspaceMembers = members;
+    state.providers = providers;
 
     renderConversations();
     renderContacts();
+    renderProviderOptions();
 
     const remembered = localStorage.getItem("aidiscussion:last");
     const target =
@@ -132,7 +180,11 @@ function renderConversations() {
       conversation.type === "group"
         ? conversation.title
         : names.find((name) => name !== state.me?.name) || conversation.title;
-    item.append(avatarFor(label));
+    const peer =
+      conversation.type === "group"
+        ? null
+        : conversation.members.find((member) => member.kind === "ai");
+    item.append(avatarFor(label, "", peer?.provider));
 
     const main = document.createElement("div");
     main.className = "list-item-main";
@@ -160,17 +212,30 @@ function renderContacts() {
   for (const member of ais) {
     const item = document.createElement("li");
     item.className = "list-item";
-    item.append(avatarFor(member.name));
+    item.append(avatarFor(member.name, "", member.provider));
     const main = document.createElement("div");
     main.className = "list-item-main";
     const name = document.createElement("strong");
     name.textContent = member.name;
     const hint = document.createElement("span");
-    hint.textContent = "点击私聊";
+    hint.textContent = `${member.provider_label} · 点击私聊`;
     main.append(name, hint);
     item.append(main);
     item.addEventListener("click", () => openDirect(member.id));
     el.contacts.append(item);
+  }
+}
+
+function renderProviderOptions() {
+  if (!el.newMemberProvider) return;
+  el.newMemberProvider.textContent = "";
+  for (const provider of state.providers) {
+    const option = document.createElement("option");
+    option.value = provider.id;
+    option.textContent = provider.has_key
+      ? `${provider.label} · ${provider.model}`
+      : `${provider.label}（未配置密钥，将用离线 Mock）`;
+    el.newMemberProvider.append(option);
   }
 }
 
@@ -201,7 +266,12 @@ function messageNode(message, { streaming = false } = {}) {
   const wrap = document.createElement("div");
   wrap.className = "msg" + (self ? " self" : "");
 
-  const avatar = avatarFor(message.sender_name, "lg");
+  const avatar = avatarFor(
+    message.sender_name,
+    "lg",
+    logoFor(memberById(message.sender_id)),
+    self ? SELF_AVATAR : null
+  );
   const body = document.createElement("div");
   body.className = "msg-body";
 
@@ -436,6 +506,9 @@ function sendMessage() {
     return;
   }
   state.ws.send(JSON.stringify({ type: "send", content, mode: state.mode }));
+  if (state.mode === "mention" && state.detail?.type === "group" && !content.includes("@")) {
+    toast("点名模式要 @ 成员才会回复；想让大家自由发言请切到「自由」");
+  }
   el.input.value = "";
   resizeInput();
   el.input.focus();
@@ -455,6 +528,7 @@ async function openMembers() {
   if (!state.detail) return;
   try {
     await refreshWorkspace();
+    await refreshProviders();
     renderMemberModal();
     showModal("membersModal");
   } catch (error) {
@@ -471,14 +545,17 @@ function renderMemberModal() {
   el.memberList.textContent = "";
   for (const member of conversation.members) {
     const item = document.createElement("li");
-    item.append(avatarFor(member.name));
+    item.append(
+      avatarFor(member.name, "", logoFor(member), member.id === state.me?.id ? SELF_AVATAR : null)
+    );
 
     const meta = document.createElement("div");
     meta.className = "meta";
     const name = document.createElement("strong");
     name.textContent = member.name + (member.id === state.me?.id ? "（我）" : "");
     const persona = document.createElement("span");
-    persona.textContent = member.system_prompt || "普通成员";
+    const model = member.model ? ` · ${member.model}` : "";
+    persona.textContent = `${member.provider_label}${model} · ${member.system_prompt || "普通成员"}`;
     meta.append(name, persona);
     item.append(meta);
 
@@ -537,6 +614,7 @@ async function addMember() {
 }
 
 async function createMember() {
+  const provider = el.newMemberProvider?.value || state.providers[0]?.id || "deepseek";
   const name = document.getElementById("newMemberName").value.trim();
   const persona = document.getElementById("newMemberPersona").value.trim();
   const model = document.getElementById("newMemberModel").value.trim();
@@ -547,6 +625,7 @@ async function createMember() {
   try {
     const member = await api.post("/api/members", {
       name,
+      provider,
       system_prompt: persona,
       model: model || null,
     });
@@ -562,6 +641,104 @@ async function createMember() {
     await reloadCurrent({ keepMessages: false });
     renderMemberModal();
     toast(`已创建「${member.name}」`);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+/* ---------------- 模型接入 ---------------- */
+
+async function refreshProviders() {
+  state.providers = await api.get("/api/providers");
+  renderProviderOptions();
+  renderProviderList();
+}
+
+function renderProviderList() {
+  el.providerList.textContent = "";
+  for (const provider of state.providers) {
+    const item = document.createElement("li");
+
+    const main = document.createElement("div");
+    main.className = "provider-main";
+    const title = document.createElement("strong");
+    title.textContent = provider.label;
+    const hint = document.createElement("span");
+    const keyState = provider.has_key ? `密钥 ${provider.api_key_hint}` : "未配置密钥";
+    hint.textContent = `${provider.model} · ${keyState}`;
+    main.append(title, hint);
+
+    const actions = document.createElement("div");
+    actions.className = "provider-actions";
+    const edit = document.createElement("button");
+    edit.className = "link-btn";
+    edit.textContent = "编辑";
+    edit.addEventListener("click", () => showProviderForm(provider));
+    actions.append(edit);
+    const remove = document.createElement("button");
+    remove.className = "link-btn danger";
+    remove.textContent = "删除";
+    remove.addEventListener("click", () => deleteProvider(provider));
+    actions.append(remove);
+
+    item.append(main, actions);
+    el.providerList.append(item);
+  }
+}
+
+function showProviderForm(provider = null) {
+  state.editingProvider = provider ? provider.id : null;
+  el.providerLabel.value = provider?.label || "";
+  el.providerBaseUrl.value = provider?.base_url || "";
+  el.providerModel.value = provider?.model || "";
+  el.providerKey.value = "";
+  el.providerKey.placeholder = provider?.has_key
+    ? `已保存 ${provider.api_key_hint}，留空表示不修改`
+    : "API Key（本地服务可留空）";
+  el.providerNoTemperature.checked = provider ? !provider.send_temperature : false;
+  el.providerForm.hidden = false;
+}
+
+function hideProviderForm() {
+  state.editingProvider = null;
+  el.providerForm.hidden = true;
+}
+
+async function saveProvider() {
+  const payload = {
+    label: el.providerLabel.value.trim(),
+    base_url: el.providerBaseUrl.value.trim(),
+    model: el.providerModel.value.trim(),
+    send_temperature: !el.providerNoTemperature.checked,
+  };
+  if (!payload.label || !payload.base_url || !payload.model) {
+    toast("名称、接口地址、模型名都要填", true);
+    return;
+  }
+
+  const key = el.providerKey.value.trim();
+  try {
+    if (state.editingProvider) {
+      if (key) payload.api_key = key;
+      await api.patch(`/api/providers/${state.editingProvider}`, payload);
+    } else {
+      payload.api_key = key;
+      await api.post("/api/providers", payload);
+    }
+    hideProviderForm();
+    await refreshProviders();
+    toast("模型配置已保存");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function deleteProvider(provider) {
+  if (!confirm(`删除「${provider.label}」？正在使用它的成员需要先换个模型。`)) return;
+  try {
+    await api.del(`/api/providers/${provider.id}`);
+    await refreshProviders();
+    toast(`已删除「${provider.label}」`);
   } catch (error) {
     toast(error.message, true);
   }
@@ -585,7 +762,7 @@ function openNewGroup() {
     checkbox.value = member.id;
     checkbox.checked = true;
     const label = document.createElement("span");
-    label.textContent = member.name;
+    label.textContent = `${member.name}（${member.provider_label}）`;
     item.append(checkbox, label);
     el.groupMemberOptions.append(item);
   }
@@ -646,6 +823,9 @@ function bindEvents() {
   document.getElementById("manageMembersBtn").addEventListener("click", openMembers);
   document.getElementById("addMemberBtn").addEventListener("click", addMember);
   document.getElementById("createMemberBtn").addEventListener("click", createMember);
+  document.getElementById("addProviderBtn").addEventListener("click", () => showProviderForm());
+  document.getElementById("saveProviderBtn").addEventListener("click", saveProvider);
+  document.getElementById("cancelProviderBtn").addEventListener("click", hideProviderForm);
   document.getElementById("newGroupBtn").addEventListener("click", openNewGroup);
   document.getElementById("createGroupBtn").addEventListener("click", createGroup);
 

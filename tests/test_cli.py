@@ -5,11 +5,12 @@ from collections.abc import AsyncIterator, Sequence
 
 from aidiscussion.cli.app import ChatApp, Mode
 from aidiscussion.db.database import Database
-from aidiscussion.db.models import MemberKind
+from aidiscussion.db.models import ConversationType, MemberKind
 from aidiscussion.llm.base import LLMMessage
 from aidiscussion.repositories import conversations as conv_repo
 from aidiscussion.repositories import members as member_repo
 from aidiscussion.repositories import messages as message_repo
+from aidiscussion.services.workspace import ensure_workspace
 
 
 class FakeLLM:
@@ -56,7 +57,7 @@ async def test_bootstrap_creates_demo_workspace(db: Database) -> None:
         conversations = await conv_repo.list_conversations(session)
         me = await member_repo.get_self_member(session)
 
-    assert len(ai_members) == 3
+    assert len(ai_members) == 4
     assert len(conversations) == 1
     assert app.me_id == me.id
     assert app.conversation_id == conversations[0].id
@@ -84,11 +85,11 @@ async def test_create_and_kick_member(db: Database) -> None:
 async def test_direct_chat_is_reused(db: Database) -> None:
     app, _, _, _ = await make_app(db)
 
-    await app.handle_command("/dm 通用助手")
+    await app.handle_command("/dm 豆包")
     first = app.conversation_id
 
     await app.handle_command("/new 另一个群")
-    await app.handle_command("/dm 通用助手")
+    await app.handle_command("/dm 豆包")
 
     assert app.conversation_id == first
 
@@ -120,12 +121,12 @@ async def test_mention_mode_stays_silent_without_mention(db: Database) -> None:
 async def test_mention_mode_answers_named_member(db: Database) -> None:
     app, _, written, _ = await make_app(db)
 
-    await app.send("@行业顾问 这单怎么谈")
+    await app.send("@Kimi 这单怎么谈")
 
     async with db.session() as session:
         history = await message_repo.list_messages(session, app.conversation_id)
     assert len(history) == 2
-    assert "行业顾问：" in "".join(written)
+    assert "Kimi：" in "".join(written)
 
 
 async def test_switch_between_conversations(db: Database) -> None:
@@ -160,7 +161,7 @@ async def test_invalid_mode_is_rejected(db: Database) -> None:
 async def test_direct_chat_replies_without_mention(db: Database) -> None:
     app, _, _, _ = await make_app(db)
 
-    await app.handle_command("/dm 毒舌朋友")
+    await app.handle_command("/dm DeepSeek")
     await app.send("你觉得我该辞职吗")
 
     async with db.session() as session:
@@ -172,9 +173,48 @@ async def test_direct_chat_replies_without_mention(db: Database) -> None:
 async def test_history_and_exit(db: Database) -> None:
     app, out, _, _ = await make_app(db)
 
-    await app.handle_command("/dm 通用助手")
+    await app.handle_command("/dm 豆包")
     await app.send("记住这句话")
     await app.handle_command("/history 5")
 
     assert any("记住这句话" in line for line in out)
     assert await app.handle_command("/exit") is False
+
+
+async def test_legacy_demo_members_are_renamed_in_place(db: Database) -> None:
+    async with db.session() as session:
+        me = await member_repo.get_self_member(session)
+        legacy = await member_repo.create_member(
+            session, name="通用助手", system_prompt="旧人设"
+        )
+        conversation = await conv_repo.create_conversation(
+            session,
+            type=ConversationType.GROUP,
+            title="旧群",
+            member_ids=[me.id, legacy.id],
+        )
+        direct = await conv_repo.create_conversation(
+            session,
+            type=ConversationType.DIRECT,
+            title="与 通用助手 的私聊",
+            member_ids=[me.id, legacy.id],
+        )
+        legacy_id, conversation_id, direct_id = legacy.id, conversation.id, direct.id
+
+    async with db.session() as session:
+        await ensure_workspace(session)
+
+    async with db.session() as session:
+        upgraded = await member_repo.get_member(session, legacy_id)
+        assert upgraded is not None
+        assert upgraded.name == "豆包"
+        assert upgraded.provider == "doubao"
+
+        # 成员 id 不变，旧会话照常可用
+        old_group = await conv_repo.get_conversation(session, conversation_id)
+        assert old_group is not None
+        assert "豆包" in {link.member.name for link in old_group.member_links}
+
+        old_direct = await conv_repo.get_conversation(session, direct_id)
+        assert old_direct is not None
+        assert old_direct.title == "与 豆包 的私聊"

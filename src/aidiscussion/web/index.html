@@ -80,11 +80,33 @@
           </div>
         </div>
 
+        <div class="section-title">
+          <span>模型接入</span>
+          <button id="addProviderBtn" class="link-btn">＋ 添加模型</button>
+        </div>
+        <ul id="providerList" class="member-list provider-list"></ul>
+
+        <div id="providerForm" class="stack" hidden>
+          <input id="providerLabel" placeholder="名称，例如：本地 Ollama" />
+          <input id="providerBaseUrl" placeholder="接口地址，例如：http://localhost:11434/v1" />
+          <input id="providerModel" placeholder="模型名，例如：qwen3:8b" />
+          <input id="providerKey" type="password" placeholder="API Key（本地服务可留空）" />
+          <label class="checkbox">
+            <input id="providerNoTemperature" type="checkbox" />
+            <span>不发送 temperature（Kimi 等部分模型需要）</span>
+          </label>
+          <div class="row">
+            <button id="saveProviderBtn" class="btn primary">保存</button>
+            <button id="cancelProviderBtn" class="btn ghost">取消</button>
+          </div>
+        </div>
+
         <div class="section-title">新建 AI 成员</div>
         <div class="stack">
-          <input id="newMemberName" placeholder="名字，例如：财务顾问" />
+          <select id="newMemberProvider" title="选择这个成员背后的模型厂商"></select>
+          <input id="newMemberName" placeholder="名字，例如：豆包" />
           <textarea id="newMemberPersona" rows="3" placeholder="人设：你是谁、擅长什么、说话风格"></textarea>
-          <input id="newMemberModel" placeholder="模型名（留空使用默认）" />
+          <input id="newMemberModel" placeholder="模型名（留空使用该厂商默认模型）" />
           <button id="createMemberBtn" class="btn primary">创建并加入当前群</button>
         </div>
       </div>

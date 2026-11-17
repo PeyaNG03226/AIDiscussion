@@ -35,7 +35,7 @@ aidiscussion-desktop = "aidiscussion.desktop.launcher:main"
 
 [project.optional-dependencies]
 # 桌面壳是可选能力：`uv sync --extra desktop` 后才启用 --desktop
-desktop = ["pywebview>=5.0"]
+desktop = ["pillow>=10", "pywebview>=5.0"]
 
 [dependency-groups]
 dev = [

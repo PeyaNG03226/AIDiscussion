@@ -19,6 +19,7 @@ def build_prompt(
     is_group: bool,
     summary: str | None = None,
     memories: Sequence[str] = (),
+    other_context: Sequence[tuple[Message, str]] = (),
 ) -> list[LLMMessage]:
     persona = member.system_prompt.strip() or f"你是「{member.name}」，一个有主见的对话伙伴。"
 
@@ -40,6 +41,16 @@ def build_prompt(
 
     if summary:
         system_parts.append(f"更早的对话已经被压缩成下面的摘要：\n{summary}")
+
+    if other_context:
+        lines = []
+        for message, title in other_context:
+            snippet = " ".join(message.content.split())[:80]
+            lines.append(f"- [{title}] {message.sender.name}：{snippet}")
+        system_parts.append(
+            "用户在其他会话里的最近动态（你们共享的背景；可以直接引用，"
+            "但不要声称自己当时在那个会话里说过话）：\n" + "\n".join(lines)
+        )
 
     messages = [LLMMessage(role="system", content="\n\n".join(system_parts))]
     for item in history:

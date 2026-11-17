@@ -37,11 +37,14 @@ class OpenAICompatibleClient:
         timeout: float = 60.0,
         max_retries: int = 2,
         backoff: float = 0.5,
+        send_temperature: bool = True,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._model = model
         self._max_retries = max_retries
         self._backoff = backoff
+        # 部分推理模型（如 Kimi 的 k 系列）只接受 temperature=1，这里干脆不传
+        self._send_temperature = send_temperature
         self._headers = {"Authorization": f"Bearer {api_key}"}
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
@@ -62,9 +65,10 @@ class OpenAICompatibleClient:
             "messages": [
                 {"role": message.role, "content": message.content} for message in messages
             ],
-            "temperature": temperature,
             "stream": True,
         }
+        if self._send_temperature:
+            payload["temperature"] = temperature
 
         attempt = 0
         started = False

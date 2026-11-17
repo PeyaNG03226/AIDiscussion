@@ -5,9 +5,18 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aidiscussion.config import DEFAULT_PROVIDER
 from aidiscussion.db.models import Member, MemberKind
 
-_EDITABLE_FIELDS = {"name", "avatar", "model", "system_prompt", "temperature", "is_active"}
+_EDITABLE_FIELDS = {
+    "name",
+    "avatar",
+    "provider",
+    "model",
+    "system_prompt",
+    "temperature",
+    "is_active",
+}
 
 
 async def create_member(
@@ -16,6 +25,7 @@ async def create_member(
     name: str,
     kind: MemberKind = MemberKind.AI,
     avatar: str = "",
+    provider: str = DEFAULT_PROVIDER,
     model: str | None = None,
     system_prompt: str = "",
     temperature: float = 0.7,
@@ -34,6 +44,7 @@ async def create_member(
             raise ValueError(f"成员名称已存在：{name}")
         existing.kind = kind
         existing.avatar = avatar
+        existing.provider = provider
         existing.model = model
         existing.system_prompt = system_prompt
         existing.temperature = temperature
@@ -45,6 +56,7 @@ async def create_member(
         name=name,
         kind=kind,
         avatar=avatar,
+        provider=provider,
         model=model,
         system_prompt=system_prompt,
         temperature=temperature,

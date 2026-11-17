@@ -101,6 +101,7 @@ async def _handle_send(
             conversation=conversation,
             user_message=user_message,
             mode=mode,
+            llm_for_member=websocket.app.state.llm_for_member,
         ):
             if isinstance(event, ReplyStart):
                 await websocket.send_json(

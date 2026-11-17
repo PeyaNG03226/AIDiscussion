@@ -89,7 +89,7 @@ async def test_remove_member_keeps_history(session: AsyncSession) -> None:
 
 async def test_direct_conversation_lookup(session: AsyncSession) -> None:
     me = await member_repo.get_self_member(session)
-    ai_id = (await make_members(session, "私聊对象"))[0]
+    ai_id, other_ai_id = await make_members(session, "私聊对象", "另一个对象")
 
     assert await conv_repo.get_direct_conversation(session, me.id, ai_id) is None
 
@@ -101,6 +101,9 @@ async def test_direct_conversation_lookup(session: AsyncSession) -> None:
     assert found is not None
     assert found.id == direct.id
     assert len(found.member_links) == 2
+
+    # 已有私聊不能被复用到别的 AI 身上，否则点谁都进同一个会话
+    assert await conv_repo.get_direct_conversation(session, me.id, other_ai_id) is None
 
 
 async def test_conversation_list_ordered_by_activity(session: AsyncSession) -> None:

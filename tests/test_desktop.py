@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+import pytest
 
 from aidiscussion.__main__ import build_parser
 from aidiscussion.api.app import create_app
@@ -56,8 +57,6 @@ def test_server_thread_serves_health(tmp_path: Path) -> None:
         response = httpx.get(f"{url}/api/health", timeout=5)
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
-        assert httpx.get(f"{url}/ball.html", timeout=5).status_code == 200
-        assert httpx.get(f"{url}/ball.png", timeout=5).status_code == 200
     finally:
         server.stop()
 
@@ -79,17 +78,18 @@ def test_bridge_opens_and_retracts_chat() -> None:
     bridge.quit_app()
     assert ball.destroyed is True
     assert chat.destroyed is True
+    assert handler() is True
 
 
-def test_ball_page_wires_up_bridge() -> None:
-    web_dir = Path(__file__).resolve().parents[1] / "src" / "aidiscussion" / "web"
+def test_ball_asset_is_transparent_png() -> None:
+    pytest.importorskip("PIL")
+    from PIL import Image
 
-    ball_html = (web_dir / "ball.html").read_text(encoding="utf-8")
+    path = Path(__file__).resolve().parents[1] / "src" / "aidiscussion" / "assets" / "ball.png"
+    image = Image.open(path)
 
-    assert "pywebview.api.open_chat()" in ball_html
-    assert "pywebview.api.quit_app()" in ball_html
-    assert "ball.png" in ball_html
-    assert (web_dir / "ball.png").stat().st_size > 0
+    assert image.mode == "RGBA"
+    assert image.getpixel((0, 0))[3] == 0
 
 
 def test_desktop_flag_is_parsed() -> None:

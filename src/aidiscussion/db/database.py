@@ -9,6 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from aidiscussion.config import Settings, get_settings
 from aidiscussion.db.base import Base
 
+# 旧库升级：create_all 只会建新表，不会给已有表加列，这里补上「有安全默认值」的新列
+_SQLITE_ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "members": {"provider": "VARCHAR(20) DEFAULT 'deepseek'"},
+}
+
+
+def _add_missing_columns(connection: Any) -> None:
+    if connection.dialect.name != "sqlite":
+        return
+    for table, columns in _SQLITE_ADDED_COLUMNS.items():
+        existing = {
+            row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info('{table}')")
+        }
+        for name, ddl in columns.items():
+            if name not in existing:
+                connection.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+
 
 class Database:
     """持有一个异步引擎和会话工厂。
@@ -24,6 +41,7 @@ class Database:
     async def create_all(self) -> None:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_add_missing_columns)
 
     async def dispose(self) -> None:
         await self.engine.dispose()

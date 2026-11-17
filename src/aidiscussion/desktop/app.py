@@ -20,6 +20,7 @@ class DesktopBridge:
     def __init__(self) -> None:
         self._ball = None
         self._chat = None
+        self._quitting = False
 
     def _attach(self, ball, chat) -> None:
         self._ball = ball
@@ -38,17 +39,38 @@ class DesktopBridge:
 
     def _on_chat_closing(self):
         """关闭聊天窗口时缩回悬浮球，而不是退出整个程序。"""
+        if self._quitting:
+            return True
         self.hide_chat()
         return False
 
     def quit_app(self) -> None:
-        for window in (self._chat, self._ball):
+        """右键悬浮球退出：先收起球，再关闭聊天窗口，让主循环结束。"""
+        self._quitting = True
+        ball, self._ball = self._ball, None
+        chat, self._chat = self._chat, None
+        for window in (ball, chat):
             if window is not None:
                 with contextlib.suppress(Exception):
                     window.destroy()
 
 
 def start_desktop() -> int:
+    from aidiscussion.desktop.ball import (
+        BALL_IMAGE,
+        FloatingBall,
+        acquire_single_instance,
+        enable_dpi_awareness,
+        wake_existing_ball,
+    )
+
+    # 双击多次只保留一个浮窗：第二次启动改为唤起已在运行的聊天窗口
+    if not acquire_single_instance():
+        wake_existing_ball()
+        return 0
+
+    # 必须在导入 pywebview 之前声明 DPI 感知，否则悬浮球会被系统缩放发虚
+    enable_dpi_awareness()
     try:
         import webview
     except ImportError:
@@ -63,18 +85,18 @@ def start_desktop() -> int:
     try:
         url = server.start()
         bridge = DesktopBridge()
-        ball = webview.create_window(
-            "AIDiscussion",
-            url=f"{url}/ball.html",
-            width=84,
-            height=84,
-            frameless=True,
-            easy_drag=True,
-            on_top=True,
-            transparent=True,
-            resizable=False,
-            js_api=bridge,
-        )
+        try:
+            ball = FloatingBall(
+                BALL_IMAGE,
+                on_click=bridge.open_chat,
+                on_quit=bridge.quit_app,
+            )
+        except ImportError:
+            print(
+                "桌面模式需要额外依赖：请先执行 `uv sync --extra desktop`",
+                file=sys.stderr,
+            )
+            return 1
         chat = webview.create_window(
             "AIDiscussion",
             url=url,
@@ -84,7 +106,10 @@ def start_desktop() -> int:
             hidden=True,
         )
         bridge._attach(ball, chat)
-        webview.start(debug=settings.debug)
+        try:
+            webview.start(debug=settings.debug)
+        finally:
+            ball.destroy()
         return 0
     finally:
         server.stop()

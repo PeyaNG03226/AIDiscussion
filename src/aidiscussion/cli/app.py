@@ -12,7 +12,7 @@ from aidiscussion.config import get_settings
 from aidiscussion.db.database import Database, get_database
 from aidiscussion.db.models import Conversation, ConversationType, MemberKind, MessageStatus
 from aidiscussion.llm.base import LLMClient
-from aidiscussion.llm.factory import get_llm
+from aidiscussion.llm.factory import get_llm, get_llm_for
 from aidiscussion.repositories import conversations as conv_repo
 from aidiscussion.repositories import members as member_repo
 from aidiscussion.repositories import messages as message_repo
@@ -65,9 +65,11 @@ class ChatApp:
         color: bool = False,
         history_limit: int = 20,
         max_replies: int = 4,
+        llm_for_member: chat.LLMResolver | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
+        self._llm_for_member = llm_for_member
         self._out = out
         self._writer = write or self._stdout_write
         self._color = color
@@ -355,6 +357,7 @@ class ChatApp:
                 mode=self.mode.value,
                 max_replies=self._max_replies,
                 history_limit=self._history_limit,
+                llm_for_member=self._llm_for_member,
             ):
                 if isinstance(event, ReplyStart):
                     self._write("\n")
@@ -424,7 +427,13 @@ async def run_chat() -> int:
     db = get_database()
     await db.create_all()
     llm = get_llm()
-    app = ChatApp(db=db, llm=llm, out=print, color=color)
+    app = ChatApp(
+        db=db,
+        llm=llm,
+        out=print,
+        color=color,
+        llm_for_member=lambda member: get_llm_for(member.provider),
+    )
     try:
         await app.run()
     finally:
